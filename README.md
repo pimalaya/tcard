@@ -1,11 +1,13 @@
-# MML [![Documentation](https://img.shields.io/docsrs/mime-meta-language?style=flat&logo=docs.rs&logoColor=white)](https://docs.rs/mime-meta-language/latest/mml) [![Matrix](https://img.shields.io/badge/chat-%23pimalaya-blue?style=flat&logo=matrix&logoColor=white)](https://matrix.to/#/#pimalaya:matrix.org) [![Mastodon](https://img.shields.io/badge/news-%40pimalaya-blue?style=flat&logo=mastodon&logoColor=white)](https://fosstodon.org/@pimalaya)
+# tcard [![Documentation](https://img.shields.io/docsrs/tcard?style=flat&logo=docs.rs&logoColor=white)](https://docs.rs/tcard/latest/tcard) [![Matrix](https://img.shields.io/badge/chat-%23pimalaya-blue?style=flat&logo=matrix&logoColor=white)](https://matrix.to/#/#pimalaya:matrix.org) [![Mastodon](https://img.shields.io/badge/news-%40pimalaya-blue?style=flat&logo=mastodon&logoColor=white)](https://fosstodon.org/@pimalaya)
 
-CLI and lib for the Emacs MIME message Meta Language ([MML](https://www.gnu.org/software/emacs/manual/html_node/emacs-mime/MML-Definition.html)), written in Rust.
+CLI and lib to edit [vCards](https://www.rfc-editor.org/rfc/rfc6350) as ergonomic TOML.
+
+Think about [jCard](https://www.rfc-editor.org/rfc/rfc7095), but using TOML instead!
 
 This repository ships two layers:
 
-- Low-level **library** exposing two pipelines (MML→MIME compiler, MIME→MML interpreter) and a template builder for compose/reply/forward drafts.
-- High-level **CLI** wrapping the library, plus editor-driven `compose` / `reply` / `forward` commands bundling "template → `$EDITOR` → compile → validate/re-edit/view/abort", and `interpret` (aliased `read`) for the inverse MIME→MML flow.
+- Low-level **library** projecting between a [calcard](https://crates.io/crates/calcard) `VCard` and TOML: `project` emits the scaffold, `apply` rebuilds modeled fields from the edited buffer while carrying every unmodeled property (custom `X-*`, vendor extensions) over verbatim.
+- High-level **CLI** with two verbs: `template` prints the TOML scaffold (blank or prefilled), `edit` runs the full "project → `$EDITOR` → apply" round-trip and emits the resulting vCard.
 
 ## Table of contents
 
@@ -15,7 +17,6 @@ This repository ships two layers:
   - [Cargo](#cargo)
   - [Nix](#nix)
   - [Sources](#sources)
-- [Configuration](#configuration)
 - [Usage](#usage)
   - [Library](#library)
   - [CLI](#cli)
@@ -27,44 +28,34 @@ This repository ships two layers:
 
 ## Features
 
-- **MML → MIME compilation** (requires `compiler` feature):
-  - `<#part>` / `<#multipart>` directives with `type`, `filename`, `disposition`, `encoding`, `description`, `name`, `recipient-filename`, dates, etc.
-  - Inline parts, attached parts, nested multiparts (`alternative`, `mixed`, `related`)
-  - File-path expansion via [`shellexpand`](https://crates.io/crates/shellexpand)
-  - MIME-type detection via [`tree_magic_mini`](https://crates.io/crates/tree_magic_mini)
-  - Parse-error reporting via [`ariadne`](https://crates.io/crates/ariadne) (CLI)
-- **MIME → MML interpretation** (requires `interpreter` feature):
-  - Header include / exclude filters
-  - Part include / exclude filters
-  - HTML → text rendering via [`nanohtml2text`](https://crates.io/crates/nanohtml2text)
-  - Attachment save-to-disk
-  - `mml interpret` (aliased `mml read`): MIME on stdin, MML/text on stdout
-- **Editor-driven flow** (requires `cli` + `compiler` + `interpreter`):
-  - `mml compose` / `mml reply` / `mml forward`: open `$EDITOR`, compile on save, prompt to validate / re-edit / view / abort
-- **TOML configuration** with per-account identities and per-section defaults (`[compose]`, `[reply]`, `[forward]`, `[read]`)
+- **vCard ↔ TOML projection**, backed by [calcard](https://crates.io/crates/calcard) (RFC 6350 / 6868 parser and writer).
+- **Discoverable form**: every modeled property is listed and empty (an empty value is ignored, like a removed line), prefilled when present, with a comment only where the value is not self-evident. Structured values (`N`, `ADR`) expand into named, ordered components instead of bare semicolons; typed properties (`email`, `tel`, ...) list their accepted `TYPE` values inline; new cards are seeded with a fresh `UID`.
+- **Lossless for unknown properties**: anything tcard does not model (`X-ABLabel`, `item1.*`, vendor extensions) is preserved verbatim through an `edit`. The TOML is an editing affordance, not an interchange format, so `apply` always works against the original card.
+- **Photo as a URI**: `PHOTO` accepts any local file or remote URL; no base64 blobs in your editor.
+- **Two verbs, no subcommand maze**: `template` always emits TOML, `edit` always emits a vCard; `SOURCE` resolves deterministically (`-` is stdin, an existing file is read, otherwise literal vCard contents, and omitting it starts a blank template).
 
 > [!TIP]
-> MML is written in [Rust](https://www.rust-lang.org/) and uses [cargo features](https://doc.rust-lang.org/cargo/reference/features.html) to gate functionality. The default feature set is declared in [Cargo.toml](./Cargo.toml).
+> tcard is written in [Rust](https://www.rust-lang.org/) and uses [cargo features](https://doc.rust-lang.org/cargo/reference/features.html) to gate the CLI. The default feature set is declared in [Cargo.toml](./Cargo.toml).
 
 ## Installation
 
 ### Pre-built binary
 
-The CLI binary `mml` can be installed from the latest [GitHub release](https://github.com/pimalaya/mml/releases) using the install script:
+The CLI binary `tcard` can be installed from the latest [GitHub release](https://github.com/pimalaya/tcard/releases) using the install script:
 
 *As root:*
 
 ```sh
-curl -sSL https://raw.githubusercontent.com/pimalaya/mml/master/install.sh | sudo sh
+curl -sSL https://raw.githubusercontent.com/pimalaya/tcard/master/install.sh | sudo sh
 ```
 
 *As a regular user:*
 
 ```sh
-curl -sSL https://raw.githubusercontent.com/pimalaya/mml/master/install.sh | PREFIX=~/.local sh
+curl -sSL https://raw.githubusercontent.com/pimalaya/tcard/master/install.sh | PREFIX=~/.local sh
 ```
 
-For a more up-to-date version, check out the [pre-releases](https://github.com/pimalaya/mml/actions/workflows/pre-releases.yml) GitHub workflow: pick the latest run and grab the artifact matching your OS. These are built from the `master` branch.
+For a more up-to-date version, check out the [pre-releases](https://github.com/pimalaya/tcard/actions/workflows/pre-releases.yml) GitHub workflow: pick the latest run and grab the artifact matching your OS. These are built from the `master` branch.
 
 > [!NOTE]
 > Pre-built binaries are built with the default cargo features. If you need a different feature set, use another installation method.
@@ -72,151 +63,117 @@ For a more up-to-date version, check out the [pre-releases](https://github.com/p
 ### Cargo
 
 ```sh
-cargo install mime-meta-language --locked --features cli
+cargo install tcard --locked --features cli
 ```
 
 You can also use the git repository for a more up-to-date (but less stable) version:
 
 ```sh
-cargo install --locked --git https://github.com/pimalaya/mml.git
+cargo install --locked --git https://github.com/pimalaya/tcard.git
 ```
 
-To use `mml` as a library, add it to your `Cargo.toml`:
+To use `tcard` as a library, add it to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-mime-meta-language = { version = "1.1", default-features = false, features = ["compiler", "interpreter"] }
+tcard = { version = "0.0.1", default-features = false }
 ```
 
-Drop `cli` (and pick only `compiler` and/or `interpreter`) for a slim library build with no clap, no ariadne, no editor integration.
+Dropping the default `cli` feature gives a slim library build with no clap, no editor integration: just the `project` / `apply` projection over a calcard `VCard`.
 
 ### Nix
 
 If you have the [Flakes](https://nixos.wiki/wiki/Flakes) feature enabled:
 
 ```sh
-nix profile install github:pimalaya/mml
+nix profile install github:pimalaya/tcard
 ```
 
 Or run without installing:
 
 ```sh
-nix run github:pimalaya/mml -- compile <<<'<#part>Hello, world!<#/part>'
+nix run github:pimalaya/tcard -- template < contact.vcf
 ```
 
 ### Sources
 
 ```sh
-git clone https://github.com/pimalaya/mml
-cd mml
+git clone https://github.com/pimalaya/tcard
+cd tcard
 nix run
 ```
-
-## Configuration
-
-A sample [config.sample.toml](./config.sample.toml) is shipped at the repository root. Drop it into one of:
-
-- `$XDG_CONFIG_HOME/mml/config.toml`
-- `$HOME/.config/mml/config.toml`
-- `$HOME/.mmlrc`
-
-Override the path with `-c <PATH>` or `MML_CONFIG=<PATH>`.
-
-CLI flags always win; config values fill in the blanks. Pick an account with `-a <NAME>`, or flag one entry `default = true`.
 
 ## Usage
 
 ### Library
 
-Compile MML to MIME:
+Project a vCard to TOML, then fold edits back:
 
 ```rust,ignore
-use mml::compiler::message::MmlCompilerBuilder;
+use calcard::vcard::VCardVersion;
+use tcard::{template, vcard};
 
-let mml = "<#part>Hello, world!<#/part>";
-let mime = MmlCompilerBuilder::new()
-    .build(mml)?
-    .compile()?
-    .into_string()?;
+let card = vcard::parse(input)?;
 
-println!("{mime}");
-```
+// Emit the prefilled, documented scaffold.
+let scaffold = template::project(&card, VCardVersion::V4_0);
 
-Interpret MIME back to MML:
+// ... user edits `scaffold` in an editor ...
 
-```rust,ignore
-use mml::interpreter::message::MimeInterpreterBuilder;
-
-let mime = b"From: a@b\r\nTo: c@d\r\nSubject: Hi\r\n\r\nHello!\r\n";
-let mml = MimeInterpreterBuilder::new()
-    .with_show_only_headers(["From", "To", "Subject"])
-    .build()
-    .from_bytes(mime)?;
-
-println!("{mml}");
+// Rebuild modeled fields from the buffer; unknown properties of
+// `card` are preserved verbatim.
+let updated = template::apply(&card, &edited, VCardVersion::V4_0)?;
 ```
 
 ### CLI
 
-Compile MML on stdin, emit MIME on stdout:
+Print a blank, fully-documented template:
 
 ```sh
-mml compile <<< '<#part>Hello, world!<#/part>'
+tcard template
 ```
 
-Interpret MIME back to MML/text:
+Project an existing vCard to TOML (path, stdin via `-`, or literal contents):
 
 ```sh
-mml interpret < message.eml
+tcard template contact.vcf
+tcard template - < contact.vcf
 ```
 
-Open the editor on a fresh compose draft, then emit the compiled MIME message on stdout, or to a file when a path is given:
+Edit a vCard in `$EDITOR`. With a file source, the result is written back in place; otherwise it goes to stdout (or `--output`):
 
 ```sh
-mml compose --from me@example.org
-mml compose --from me@example.org /tmp/draft.eml
+tcard edit contact.vcf
+tcard edit - < contact.vcf > updated.vcf
+tcard template | $EDITOR /dev/stdin   # inspect the scaffold first
 ```
 
-Reply / forward read the source MIME on stdin (or from a path after `--`) and route the result the same way; the leading positional is the optional output path:
+Start a new card from scratch and write it out:
 
 ```sh
-cat message.eml | mml reply --all
-cat message.eml | mml forward /tmp/draft.eml
-mml reply --all /tmp/draft.eml -- /tmp/source.eml
-```
-
-Pipelines into himalaya v2:
-
-```sh
-mml compose --from me@example.org /tmp/draft.eml && himalaya messages send /tmp/draft.eml
-mml compose --from me@example.org >(himalaya messages send)
-himalaya messages read 42 | mml reply >(himalaya messages send)
-```
-
-The path-arg or process-substitution forms keep mml's stdout connected to the terminal, so the editor mml spawns sees a real tty. The bare-pipe form `mml compose | himalaya messages send` hangs the editor because mml's stdout (and therefore the editor's inherited stdout) is the pipe to himalaya.
-
-Read (MIME → text), useful for piping through `less` or chaining with himalaya:
-
-```sh
-cat message.eml | mml read --exclude-header Received,DKIM-Signature
-```
-
-Generate a draft template without opening the editor:
-
-```sh
-mml template compose --from me@example.org
-mml template reply --all < message.eml
-mml template forward < message.eml
-```
-
-Plug `mml` into [himalaya](https://github.com/pimalaya/himalaya) v2 by wiring shell pipelines or aliases against the `messages send` / `messages add` / `messages read` primitives. A typical `.bashrc` snippet:
-
-```sh
-hsend() { local f=$(mktemp --suffix=.eml); mml compose "$f" && himalaya messages send "$f"; rm -f "$f"; }
-hreply() { himalaya messages read "$1" | mml reply >(himalaya messages send); }
+tcard edit --output alice.vcf
+tcard edit --version 3.0 --output bob.vcf
 ```
 
 ## FAQ
+
+<details>
+  <summary>How does `tcard edit` pick the editor?</summary>
+
+  The [edit](https://crates.io/crates/edit) crate resolves `$VISUAL` first, then `$EDITOR`, then an OS default. tcard does not expose a config override: set `VISUAL` / `EDITOR` in your shell rc file.
+</details>
+
+<details>
+  <summary>Why did my card get reformatted on the first edit?</summary>
+
+  tcard serializes through calcard, which normalizes line folding and parameter casing (`TYPE=work` becomes `TYPE=WORK`). The first edit of a foreign card reflows it once; output is stable afterwards. Property values and every unmodeled property are preserved verbatim, so no data is lost: only whitespace and casing change.
+</details>
+
+<details>
+  <summary>What happens to properties tcard does not list?</summary>
+
+  They are kept verbatim. The scaffold only surfaces the modeled vocabulary, but `apply` carries every other property (custom `X-*`, Apple `item1.*` groups, vendor extensions) straight from the original card into the result.
+</details>
 
 <details>
   <summary>How to debug the CLI?</summary>
@@ -224,22 +181,10 @@ hreply() { himalaya messages read "$1" | mml reply >(himalaya messages send); }
   Use `--log <level>` where `<level>` is one of `off`, `error`, `warn`, `info`, `debug`, `trace`:
 
   ```sh
-  mml --log trace compile < message.mml
+  tcard --log trace template contact.vcf
   ```
 
-  The `RUST_LOG` environment variable, when set, overrides `--log` and supports per-target filters (see the [env_logger](https://docs.rs/env_logger/latest/env_logger/#enabling-logging) documentation). `RUST_BACKTRACE=1` enables full error backtraces, including source lines where the error originated from.
-
-  Logs are written to `stderr`, so they can be redirected easily to a file:
-
-  ```sh
-  mml --log trace compile < message.mml 2>/tmp/mml.log
-  ```
-</details>
-
-<details>
-  <summary>How does `mml compose` pick the editor?</summary>
-
-  The [edit](https://crates.io/crates/edit) crate resolves `$VISUAL` first, then `$EDITOR`, then an OS default. `mml` does not expose a config knob on top: set `VISUAL` / `EDITOR` in your shell rc file.
+  The `RUST_LOG` environment variable, when set, overrides `--log` and supports per-target filters (see the [env_logger](https://docs.rs/env_logger/latest/env_logger/#enabling-logging) documentation). `RUST_BACKTRACE=1` enables full error backtraces. Logs are written to `stderr`.
 </details>
 
 ## License
@@ -255,7 +200,7 @@ at your option.
 
 This project is developed with AI assistance. This section documents how, so users and downstream packagers can make informed decisions.
 
-- **Tools**: Claude Code (Anthropic), Opus 4.7, invoked locally with a persistent project-scoped memory and a small set of repo-specific rules.
+- **Tools**: Claude Code (Anthropic), Opus 4.8, invoked locally with a persistent project-scoped memory and a small set of repo-specific rules.
 
 - **Used for**: Refactors, mechanical multi-file edits, boilerplate (feature gates, error enums, derive macros, trait impls), test scaffolding, doc polish, exploratory design conversations.
 
@@ -265,7 +210,7 @@ This project is developed with AI assistance. This section documents how, so use
 
 - **Limitations**: AI models occasionally produce code that compiles and passes tests but is subtly wrong: off-by-one errors, missed edge cases, plausible but nonexistent APIs, stale RFC references. The verification workflow catches most of this; it does not catch all of it. Bug reports are welcome and taken seriously.
 
-- **Last reviewed**: 31/05/2026
+- **Last reviewed**: 12/06/2026
 
 ## Social
 

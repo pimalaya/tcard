@@ -9,16 +9,16 @@ die() {
 
 DESTDIR="${DESTDIR:-}"
 PREFIX="${PREFIX:-"$DESTDIR/usr/local"}"
-RELEASES_URL="https://github.com/pimalaya/mml/releases"
+RELEASES_URL="https://github.com/pimalaya/tcard/releases"
 
-binary=mml
+binary=tcard
 system=$(uname -s | tr [:upper:] [:lower:])
 machine=$(uname -m | tr [:upper:] [:lower:])
 
 case $system in
     msys*|mingw*|cygwin*|win*)
 	target=x86_64-windows
-	binary=mml.exe;;
+	binary=tcard.exe;;
 
     linux|freebsd)
 	case $machine in
@@ -45,11 +45,11 @@ tmpdir=$(mktemp -d) || die "Cannot create temporary directory"
 trap "rm -rf $tmpdir" EXIT
 
 echo "Downloading latest $system release…"
-curl -sLo "$tmpdir/mml.tgz" \
-     "$RELEASES_URL/latest/download/mml.$target.tgz"
+curl -sLo "$tmpdir/tcard.tgz" \
+     "$RELEASES_URL/latest/download/tcard.$target.tgz"
 
 echo "Installing binary…"
-tar -xzf "$tmpdir/mml.tgz" -C "$tmpdir"
+tar -xzf "$tmpdir/tcard.tgz" -C "$tmpdir"
 
 mkdir -p "$PREFIX/bin"
 cp -f -- "$tmpdir/$binary" "$PREFIX/bin/$binary"
