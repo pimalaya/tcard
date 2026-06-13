@@ -47,5 +47,5 @@ edit = { version = "0.1", optional = true }
 log = { version = "0.4", default-features = false }
 pimalaya-cli = { version = "0.0.1", default-features = false, features = ["prompt", "terminal"], optional = true }
 thiserror = { version = "2", default-features = false }
-toml_edit = "0.22"
+toml_edit = "0.25"
 uuid = { version = "1", features = ["v4"], optional = true }
