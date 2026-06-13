@@ -8,6 +8,7 @@ extern crate std;
 
 #[cfg(feature = "cli")]
 pub mod cli;
+pub mod edit;
 pub mod error;
 pub mod template;
 pub mod vcard;

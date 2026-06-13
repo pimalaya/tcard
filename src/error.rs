@@ -18,6 +18,9 @@ pub enum TcardError {
     /// The edited TOML buffer is not valid TOML.
     #[error("Cannot parse TOML buffer")]
     ParseToml(#[source] toml_edit::TomlError),
+    /// The source carries no VCARD to fold the edits back onto.
+    #[error("No VCARD found in the source")]
+    NoCard,
 }
 
 /// The global `Result` alias of the library.

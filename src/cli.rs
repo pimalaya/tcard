@@ -90,7 +90,7 @@ pub struct TemplateCommand {
 
 impl TemplateCommand {
     pub fn execute(self, _printer: &mut impl Printer) -> Result<()> {
-        let (card, version) = load(&self.source, &self.version)?;
+        let (card, version, _) = load(&self.source, &self.version)?;
         let toml = template::project(&card, version);
 
         write_out(self.output.as_deref(), toml.as_bytes())
@@ -114,14 +114,14 @@ pub struct EditCommand {
 #[cfg(feature = "edit")]
 impl EditCommand {
     pub fn execute(self, _printer: &mut impl Printer) -> Result<()> {
-        let (card, version) = load(&self.source, &self.version)?;
+        let (card, version, src) = load(&self.source, &self.version)?;
         let scaffold = template::project(&card, version);
 
         debug!("opening editor on the projected scaffold");
         let edited = edit::edit_with_builder(&scaffold, edit::Builder::new().suffix(".toml"))
             .context("Cannot spawn editor")?;
 
-        let vcard = template::apply(&card, &edited, version)?;
+        let vcard = template::apply(&src, &edited)?;
 
         let target = self.output.or_else(|| self.source.file_path());
         write_out(target.as_deref(), vcard.as_bytes())
@@ -213,26 +213,28 @@ impl From<CardVersion> for VCardVersion {
     }
 }
 
-/// Load the source vCard and resolve the version: the card's own
-/// version when present, else the requested one.
-fn load(source: &SourceArg, version: &VersionArg) -> Result<(VCard, VCardVersion)> {
+/// Load the source vCard with its raw text and resolved version: the
+/// card's own version when present, else the requested one. The text is
+/// returned so [`template::apply`] can preserve every untouched byte.
+fn load(source: &SourceArg, version: &VersionArg) -> Result<(VCard, VCardVersion, String)> {
     let requested: VCardVersion = version.version.into();
 
     match source.resolve()? {
         Some(text) => {
             let card = vcard::parse(&text)?;
             let version = card.version().unwrap_or(requested);
-            Ok((card, version))
+            Ok((card, version, text))
         }
         None => {
             // A new card is seeded with a fresh UID so the contact has
             // a stable identifier from the start.
             debug!("seeding a new card with a fresh UID");
-            let card = vcard::parse(&format!(
+            let text = format!(
                 "BEGIN:VCARD\r\nVERSION:{requested}\r\nUID:urn:uuid:{}\r\nEND:VCARD\r\n",
                 Uuid::new_v4()
-            ))?;
-            Ok((card, requested))
+            );
+            let card = vcard::parse(&text)?;
+            Ok((card, requested, text))
         }
     }
 }

@@ -6,7 +6,7 @@ Think about [jCard](https://www.rfc-editor.org/rfc/rfc7095), but using TOML inst
 
 This repository ships two layers:
 
-- Low-level **library** projecting between a [calcard](https://crates.io/crates/calcard) `VCard` and TOML: `project` emits the scaffold, `apply` rebuilds modeled fields from the edited buffer while carrying every unmodeled property (custom `X-*`, vendor extensions) over verbatim.
+- Low-level **library** projecting between a [calcard](https://crates.io/crates/calcard) `VCard` and TOML: `project` emits the scaffold, `apply` patches the edited buffer back onto the original text through a format-preserving editor, re-rendering only changed lines and keeping every unmodeled property (custom `X-*`, vendor extensions) verbatim.
 - High-level **CLI** with two verbs: `template` prints the TOML scaffold (blank or prefilled), `edit` runs the full "project → `$EDITOR` → apply" round-trip and emits the resulting vCard.
 
 ## Table of contents
@@ -30,7 +30,7 @@ This repository ships two layers:
 
 - **vCard ↔ TOML projection**, backed by [calcard](https://crates.io/crates/calcard) (RFC 6350 / 6868 parser and writer).
 - **Discoverable form**: every modeled property is listed and empty (an empty value is ignored, like a removed line), prefilled when present, with a comment only where the value is not self-evident. Structured values (`N`, `ADR`) expand into named, ordered components instead of bare semicolons; typed properties (`email`, `tel`, ...) list their accepted `TYPE` values inline; new cards are seeded with a fresh `UID`.
-- **Lossless for unknown properties**: anything tcard does not model (`X-ABLabel`, `item1.*`, vendor extensions) is preserved verbatim through an `edit`. The TOML is an editing affordance, not an interchange format, so `apply` always works against the original card.
+- **Minimal diff, lossless for unknown properties**: `apply` patches the original text through a format-preserving editor, re-rendering only the lines you changed. Anything tcard does not model (`X-ABLabel`, `item1.*`, vendor extensions), folding, casing and ordering are kept byte-for-byte. The TOML is an editing affordance, not an interchange format, so `apply` always works against the original card.
 - **Photo as a URI**: `PHOTO` accepts any local file or remote URL; no base64 blobs in your editor.
 - **Two verbs, no subcommand maze**: `template` always emits TOML, `edit` always emits a vCard; `SOURCE` resolves deterministically (`-` is stdin, an existing file is read, otherwise literal vCard contents, and omitting it starts a blank template).
 
@@ -120,9 +120,9 @@ let scaffold = template::project(&card, VCardVersion::V4_0);
 
 // ... user edits `scaffold` in an editor ...
 
-// Rebuild modeled fields from the buffer; unknown properties of
-// `card` are preserved verbatim.
-let updated = template::apply(&card, &edited, VCardVersion::V4_0)?;
+// Fold the edits back onto the original text: only changed lines are
+// re-rendered, everything else stays byte-for-byte identical.
+let updated = template::apply(input, &edited)?;
 ```
 
 ### CLI
@@ -164,9 +164,9 @@ tcard edit --version 3.0 --output bob.vcf
 </details>
 
 <details>
-  <summary>Why did my card get reformatted on the first edit?</summary>
+  <summary>Will tcard reformat my whole card on edit?</summary>
 
-  tcard serializes through calcard, which normalizes line folding and parameter casing (`TYPE=work` becomes `TYPE=WORK`). The first edit of a foreign card reflows it once; output is stable afterwards. Property values and every unmodeled property are preserved verbatim, so no data is lost: only whitespace and casing change.
+  No. `apply` patches the original text through a format-preserving editor (the vCard analog of toml_edit): only the lines of modeled fields you actually changed are re-rendered, so the diff is minimal. Folding, parameter casing (`TYPE=work` stays `TYPE=work`), property order and line endings of every untouched line are kept byte-for-byte.
 </details>
 
 <details>

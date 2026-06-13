@@ -4,18 +4,18 @@
 //! prefilled, the rest are listed empty (an empty value means the same as a
 //! removed line, so nothing is commented out). A hint, when useful, sits inline
 //! next to the value, and hints within a block are aligned to a common
-//! column. [`apply`] takes the original vCard plus the edited buffer and
-//! produces an updated vCard, rebuilding the modeled fields from TOML while
-//! carrying every unmodeled property (custom `X-*`, vendor extensions, ...)
-//! verbatim.
+//! column. [`apply`] takes the original vCard text plus the edited buffer and
+//! produces an updated vCard, patching only the modeled lines the user changed
+//! (through the format-preserving [`crate::edit`]) while keeping every unmodeled
+//! property (custom `X-*`, vendor extensions, ...) byte-for-byte.
 //!
 //! `UID` is intentionally not modeled: like `VERSION` it is managed by the app
 //! (seeded for new cards, preserved otherwise) and cannot be set through the
 //! buffer.
 //!
 //! The buffer is an editing affordance, not an interchange format: `apply`
-//! always needs the original vCard, because that is where unmodeled properties
-//! live.
+//! always needs the original vCard text, because that is where unmodeled
+//! properties live.
 //!
 //! NOTE: TOML attributes every bare key after a `[table]` / `[[array]]` header
 //! to that table, so [`FIELDS`] lists all scalar/list keys first and every
@@ -31,10 +31,7 @@ use alloc::{
 
 use calcard::{
     common::IanaString,
-    vcard::{
-        VCard, VCardEntry, VCardParameterName, VCardParameterValue, VCardProperty, VCardValue,
-        VCardVersion,
-    },
+    vcard::{VCard, VCardEntry, VCardParameterName, VCardParameterValue, VCardValue, VCardVersion},
 };
 use log::trace;
 use toml_edit::{DocumentMut, Item, TableLike};
@@ -94,49 +91,26 @@ pub fn project(vcard: &VCard, version: VCardVersion) -> String {
     out
 }
 
-/// Apply an edited TOML buffer onto the original vCard.
+/// Apply an edited TOML buffer onto the original vCard text.
 ///
-/// Modeled fields are rebuilt from the buffer; unmodeled properties of
-/// `original` (including the app-managed `UID`) are preserved verbatim. The
-/// result is serialized by calcard at the requested `version`, so output is
-/// normalized (line folding, parameter casing) but lossless for unknown
-/// properties.
-pub fn apply(original: &VCard, edited_toml: &str, version: VCardVersion) -> Result<String> {
+/// The modeled fields are rewritten from the buffer through a
+/// format-preserving editor (see [`crate::edit`]): only the lines that
+/// actually changed are re-rendered, so unmodeled properties (including
+/// the app-managed `UID` and `VERSION`), folding, ordering and casing are
+/// all kept verbatim.
+pub fn apply(original_src: &str, edited_toml: &str) -> Result<String> {
     trace!("applying {} bytes of edited TOML", edited_toml.len());
 
     let doc: DocumentMut = edited_toml.parse().map_err(TcardError::ParseToml)?;
 
-    let mut assembled = String::from("BEGIN:VCARD\r\n");
-    assembled.push_str("VERSION:");
-    assembled.push_str(vcard::version_str(version));
-    assembled.push_str("\r\n");
+    let mut card = crate::edit::parse(original_src);
+    let component = card.component_mut("VCARD").ok_or(TcardError::NoCard)?;
 
     for field in FIELDS {
-        field.emit(&doc, &mut assembled);
+        component.set_all(field.name, &field.content_lines(&doc));
     }
 
-    assembled.push_str("END:VCARD\r\n");
-
-    let mut rebuilt = vcard::parse(&assembled)?;
-    rebuilt.entries.retain(|entry| is_data(&entry.name));
-    let modeled = rebuilt.entries.len();
-
-    let mut preserved = 0;
-    for entry in &original.entries {
-        if is_data(&entry.name) && !is_modeled(&entry.name) {
-            rebuilt.entries.push(entry.clone());
-            preserved += 1;
-        }
-    }
-
-    trace!("rebuilt {modeled} modeled entries, preserved {preserved} unmodeled");
-
-    let mut out = String::new();
-    rebuilt
-        .write_to(&mut out, version)
-        .expect("writing a vCard to a String is infallible");
-
-    Ok(out)
+    Ok(card.to_string())
 }
 
 /// A projected line: a left side and an optional inline hint.
@@ -516,49 +490,46 @@ impl Field {
         }
     }
 
-    /// Emit this field's vCard content line(s) from the edited `doc` into
-    /// `out`, skipping empty values.
-    fn emit(&self, doc: &DocumentMut, out: &mut String) {
+    /// This field's vCard content line(s) built from the edited `doc`,
+    /// without an end of line, skipping empty values. Empty when the
+    /// field is absent or blank, so [`crate::edit::Component::set_all`]
+    /// removes it.
+    fn content_lines(&self, doc: &DocumentMut) -> Vec<String> {
         let Some(item) = doc.get(self.key) else {
-            return;
+            return Vec::new();
         };
+
+        let mut lines = Vec::new();
 
         match &self.kind {
             Kind::Scalar => {
                 if let Some(value) = item.as_str().filter(|value| !value.is_empty()) {
-                    push_line(out, &format!("{}:{}", self.name, escape(value)));
+                    lines.push(format!("{}:{}", self.name, escape(value)));
                 }
             }
 
             Kind::List { sep } => {
-                let Some(array) = item.as_array() else {
-                    return;
-                };
+                if let Some(array) = item.as_array() {
+                    let parts: Vec<String> = array
+                        .iter()
+                        .filter_map(|value| value.as_str())
+                        .filter(|value| !value.is_empty())
+                        .map(escape)
+                        .collect();
 
-                let parts: Vec<String> = array
-                    .iter()
-                    .filter_map(|value| value.as_str())
-                    .filter(|value| !value.is_empty())
-                    .map(escape)
-                    .collect();
-
-                if !parts.is_empty() {
-                    push_line(
-                        out,
-                        &format!("{}:{}", self.name, parts.join(&sep.to_string())),
-                    );
+                    if !parts.is_empty() {
+                        lines.push(format!("{}:{}", self.name, parts.join(&sep.to_string())));
+                    }
                 }
             }
 
             Kind::Structured(components) => {
-                let Some(table) = item.as_table_like() else {
-                    return;
-                };
+                if let Some(table) = item.as_table_like() {
+                    let parts = read_components(table, components);
 
-                let parts = read_components(table, components);
-
-                if parts.iter().any(|part| !part.is_empty()) {
-                    push_line(out, &format!("{}:{}", self.name, join_components(&parts)));
+                    if parts.iter().any(|part| !part.is_empty()) {
+                        lines.push(format!("{}:{}", self.name, join_components(&parts)));
+                    }
                 }
             }
 
@@ -576,7 +547,7 @@ impl Field {
                     push_type(&mut line, table);
                     line.push(':');
                     line.push_str(&escape(value));
-                    push_line(out, &line);
+                    lines.push(line);
                 }
             }
 
@@ -592,10 +563,12 @@ impl Field {
                     push_type(&mut line, table);
                     line.push(':');
                     line.push_str(&join_components(&parts));
-                    push_line(out, &line);
+                    lines.push(line);
                 }
             }
         }
+
+        lines
     }
 }
 
@@ -690,12 +663,6 @@ fn push_type(line: &mut String, table: &dyn TableLike) {
     }
 }
 
-/// Push a vCard content line with CRLF, as the spec mandates.
-fn push_line(out: &mut String, line: &str) {
-    out.push_str(line);
-    out.push_str("\r\n");
-}
-
 /// Collect the TOML tables addressed by an array-of-tables (`[[key]]`) or an
 /// inline array of inline tables.
 fn tables(item: &Item) -> Vec<&dyn TableLike> {
@@ -759,20 +726,6 @@ fn param_text(value: &VCardParameterValue) -> Option<String> {
     }
 }
 
-/// True unless the property is a structural marker calcard emits on its own
-/// (`BEGIN`, `END`, `VERSION`).
-fn is_data(name: &VCardProperty) -> bool {
-    !matches!(
-        name,
-        VCardProperty::Begin | VCardProperty::End | VCardProperty::Version
-    )
-}
-
-/// True when the property is part of the modeled vocabulary.
-fn is_modeled(name: &VCardProperty) -> bool {
-    FIELDS.iter().any(|field| field.name == name.as_str())
-}
-
 /// Render a string as a quoted, escaped TOML scalar.
 fn toml_str(value: &str) -> String {
     toml_edit::Value::from(value).to_string().trim().to_string()
@@ -820,6 +773,16 @@ mod tests {
         EMAIL;TYPE=home:john@home.example\r\n\
         ADR;TYPE=home:;;123 Main St;Springfield;IL;62701;USA\r\n\
         X-CUSTOM;TYPE=weird:keep me verbatim\r\n\
+        END:VCARD\r\n";
+
+    // Every modeled field here round-trips byte-for-byte through the
+    // projection (no structured trailing-empty normalization like `N`),
+    // so it can pin down the exact minimal-diff guarantee.
+    const CLEAN: &str = "BEGIN:VCARD\r\n\
+        VERSION:4.0\r\n\
+        FN:John Doe\r\n\
+        EMAIL;TYPE=work:john@work.example\r\n\
+        X-CUSTOM:keep me verbatim\r\n\
         END:VCARD\r\n";
 
     #[test]
@@ -873,7 +836,8 @@ mod tests {
         assert!(!toml.contains("uid"));
 
         // Preserved on round-trip, and not overridable from the buffer.
-        let out = super::apply(&card, "uid = \"hacked\"\n", VCardVersion::V4_0).unwrap();
+        let src = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:A\r\nUID:urn:uuid:keep\r\nEND:VCARD\r\n";
+        let out = super::apply(src, "uid = \"hacked\"\n").unwrap();
         assert!(out.contains("UID:urn:uuid:keep"));
         assert!(!out.contains("hacked"));
     }
@@ -918,17 +882,35 @@ mod tests {
 
     #[test]
     fn gender_roundtrips_with_identity() {
-        let card = vcard::parse(
-            "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:A\r\nGENDER:O;intersex\r\nEND:VCARD\r\n",
-        )
-        .unwrap();
+        let src = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:A\r\nGENDER:O;intersex\r\nEND:VCARD\r\n";
+        let card = vcard::parse(src).unwrap();
         let toml = super::project(&card, VCardVersion::V4_0);
 
         assert!(toml.contains("sex = \"O\""));
         assert!(toml.contains("identity = \"intersex\""));
 
-        let out = super::apply(&card, &toml, VCardVersion::V4_0).unwrap();
+        let out = super::apply(src, &toml).unwrap();
         assert!(out.contains("GENDER:O;intersex"));
+    }
+
+    #[test]
+    fn apply_projection_is_a_no_op() {
+        // Projecting then applying an untouched buffer must reproduce the
+        // source byte-for-byte: the minimal-diff guarantee at its limit.
+        let card = vcard::parse(CLEAN).unwrap();
+        let toml = super::project(&card, VCardVersion::V4_0);
+
+        assert_eq!(super::apply(CLEAN, &toml).unwrap(), CLEAN);
+    }
+
+    #[test]
+    fn apply_changes_only_the_edited_line() {
+        let card = vcard::parse(CLEAN).unwrap();
+        let toml = super::project(&card, VCardVersion::V4_0).replace("John Doe", "Jane Roe");
+
+        let out = super::apply(CLEAN, &toml).unwrap();
+
+        assert_eq!(out, CLEAN.replace("FN:John Doe", "FN:Jane Roe"));
     }
 
     #[test]
@@ -936,7 +918,7 @@ mod tests {
         let card = vcard::parse(SAMPLE).unwrap();
         let toml = super::project(&card, VCardVersion::V4_0);
 
-        let out = super::apply(&card, &toml, VCardVersion::V4_0).unwrap();
+        let out = super::apply(SAMPLE, &toml).unwrap();
 
         assert!(out.contains("FN:John Doe"));
         assert!(out.contains("john@work.example"));
@@ -963,7 +945,7 @@ mod tests {
         let card = vcard::parse(filled).unwrap();
         let toml = super::project(&card, VCardVersion::V4_0);
 
-        let out = super::apply(&card, &toml, VCardVersion::V4_0).unwrap();
+        let out = super::apply(filled, &toml).unwrap();
 
         assert!(out.contains("NICKNAME:Ada"));
         assert!(out.contains("NOTE:Pioneer"));
@@ -974,12 +956,11 @@ mod tests {
 
     #[test]
     fn apply_ignores_empty_fields() {
-        let card = vcard::parse(SAMPLE).unwrap();
         // A whole blank form must drop every modeled field (all empty)
         // yet keep the unknown property.
         let blank = super::project(&Default::default(), VCardVersion::V4_0);
 
-        let out = super::apply(&card, &blank, VCardVersion::V4_0).unwrap();
+        let out = super::apply(SAMPLE, &blank).unwrap();
 
         assert!(!out.contains("FN:"));
         assert!(!out.contains("EMAIL"));
@@ -988,10 +969,9 @@ mod tests {
 
     #[test]
     fn apply_edits_modeled_field() {
-        let card = vcard::parse(SAMPLE).unwrap();
         let edited = "fn = \"Jane Roe\"\n";
 
-        let out = super::apply(&card, edited, VCardVersion::V4_0).unwrap();
+        let out = super::apply(SAMPLE, edited).unwrap();
 
         assert!(out.contains("FN:Jane Roe"));
         assert!(!out.contains("John Doe"));
