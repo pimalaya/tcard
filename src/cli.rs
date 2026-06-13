@@ -1,15 +1,16 @@
-//! The `tcard` binary: two verbs over the [`crate::template`] projection.
+//! The `tcard` binary CLI.
 //!
 //! - `template [SOURCE]`: print the TOML scaffold, blank or prefilled from a
 //!   vCard. Always emits TOML.
-//! - `edit [SOURCE]`: project, open `$EDITOR`, apply the edits back onto the
-//!   source, and emit the resulting vCard. Always emits a vCard.
+//! - `edit [SOURCE]` (requires the `edit` feature): project, open `$EDITOR`,
+//!   apply the edits back onto the source, and emit the resulting vCard.
 //!
 //! `SOURCE` resolves deterministically: `-` reads stdin, an existing file is
 //! read, otherwise the value is treated as literal vCard contents, and omitting
 //! it starts from a blank template. The TOML is an editing affordance; the only
 //! path back to a vCard is `edit`, where the original is still in hand.
 
+use alloc::{format, string::String};
 use std::{
     fs,
     io::{Read, Write, stdin, stdout},
@@ -19,6 +20,7 @@ use std::{
 use anyhow::{Context, Result, bail};
 use calcard::vcard::{VCard, VCardVersion};
 use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
+use log::debug;
 use pimalaya_cli::{
     clap::{
         args::{JsonFlag, LogFlags},
@@ -53,6 +55,7 @@ pub struct Cli {
 pub enum Command {
     #[command(visible_alias = "tpl")]
     Template(TemplateCommand),
+    #[cfg(feature = "edit")]
     Edit(EditCommand),
 
     Completions(CompletionCommand),
@@ -63,6 +66,7 @@ impl Command {
     pub fn execute(self, printer: &mut impl Printer) -> Result<()> {
         match self {
             Self::Template(cmd) => cmd.execute(printer),
+            #[cfg(feature = "edit")]
             Self::Edit(cmd) => cmd.execute(printer),
             Self::Completions(cmd) => cmd.execute(printer, Cli::command()),
             Self::Manuals(cmd) => cmd.execute(printer, Cli::command()),
@@ -94,6 +98,7 @@ impl TemplateCommand {
 }
 
 /// Edit a vCard as TOML in `$EDITOR`, blank or prefilled from a source.
+#[cfg(feature = "edit")]
 #[derive(Debug, Parser)]
 pub struct EditCommand {
     #[command(flatten)]
@@ -106,11 +111,13 @@ pub struct EditCommand {
     pub version: VersionArg,
 }
 
+#[cfg(feature = "edit")]
 impl EditCommand {
     pub fn execute(self, _printer: &mut impl Printer) -> Result<()> {
         let (card, version) = load(&self.source, &self.version)?;
         let scaffold = template::project(&card, version);
 
+        debug!("opening editor on the projected scaffold");
         let edited = edit::edit_with_builder(&scaffold, edit::Builder::new().suffix(".toml"))
             .context("Cannot spawn editor")?;
 
@@ -138,6 +145,7 @@ impl SourceArg {
         };
 
         if source == "-" {
+            debug!("reading vCard from stdin");
             let mut buffer = String::new();
             stdin()
                 .read_to_string(&mut buffer)
@@ -146,12 +154,14 @@ impl SourceArg {
         }
 
         if let Some(path) = self.file_path() {
+            debug!("reading vCard from {path:?}");
             let contents =
                 fs::read_to_string(&path).with_context(|| format!("Cannot read vCard {path:?}"))?;
             return Ok(Some(contents));
         }
 
         if source.trim_start().starts_with("BEGIN:VCARD") {
+            debug!("treating source as literal vCard contents");
             return Ok(Some(source.clone()));
         }
 
@@ -217,6 +227,7 @@ fn load(source: &SourceArg, version: &VersionArg) -> Result<(VCard, VCardVersion
         None => {
             // A new card is seeded with a fresh UID so the contact has
             // a stable identifier from the start.
+            debug!("seeding a new card with a fresh UID");
             let card = vcard::parse(&format!(
                 "BEGIN:VCARD\r\nVERSION:{requested}\r\nUID:urn:uuid:{}\r\nEND:VCARD\r\n",
                 Uuid::new_v4()
@@ -229,7 +240,13 @@ fn load(source: &SourceArg, version: &VersionArg) -> Result<(VCard, VCardVersion
 /// Write bytes to a file, or to stdout when no path is given.
 fn write_out(path: Option<&Path>, bytes: &[u8]) -> Result<()> {
     match path {
-        Some(path) => fs::write(path, bytes).with_context(|| format!("Cannot write to {path:?}")),
-        None => stdout().write_all(bytes).context("Cannot write to stdout"),
+        Some(path) => {
+            debug!("writing {} bytes to {path:?}", bytes.len());
+            fs::write(path, bytes).with_context(|| format!("Cannot write to {path:?}"))
+        }
+        None => {
+            debug!("writing {} bytes to stdout", bytes.len());
+            stdout().write_all(bytes).context("Cannot write to stdout")
+        }
     }
 }

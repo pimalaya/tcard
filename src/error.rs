@@ -1,6 +1,8 @@
 //! The crate-wide error and result types.
 
-use std::result;
+use core::result;
+
+use alloc::string::String;
 
 use thiserror::Error;
 

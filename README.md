@@ -35,7 +35,7 @@ This repository ships two layers:
 - **Two verbs, no subcommand maze**: `template` always emits TOML, `edit` always emits a vCard; `SOURCE` resolves deterministically (`-` is stdin, an existing file is read, otherwise literal vCard contents, and omitting it starts a blank template).
 
 > [!TIP]
-> tcard is written in [Rust](https://www.rust-lang.org/) and uses [cargo features](https://doc.rust-lang.org/cargo/reference/features.html) to gate the CLI. The default feature set is declared in [Cargo.toml](./Cargo.toml).
+> The library is `#![no_std]` (alloc only) and does just the vCard ↔ TOML projection. The `cli` feature adds the command-line tool; the `edit` feature adds the `$EDITOR` round-trip (the `edit` subcommand and in-place save). Without `edit`, the CLI exposes only `template`. The default feature set is declared in [Cargo.toml](./Cargo.toml).
 
 ## Installation
 
@@ -63,7 +63,7 @@ For a more up-to-date version, check out the [pre-releases](https://github.com/p
 ### Cargo
 
 ```sh
-cargo install tcard --locked --features cli
+cargo install tcard --locked
 ```
 
 You can also use the git repository for a more up-to-date (but less stable) version:
@@ -79,7 +79,7 @@ To use `tcard` as a library, add it to your `Cargo.toml`:
 tcard = { version = "0.0.1", default-features = false }
 ```
 
-Dropping the default `cli` feature gives a slim library build with no clap, no editor integration: just the `project` / `apply` projection over a calcard `VCard`.
+Dropping the default features gives the bare `#![no_std]` library (alloc only): just the `project` / `apply` projection over a calcard `VCard`, no clap, no editor. Add `features = ["cli"]` for the command-line tool without the `$EDITOR` round-trip, or `["cli", "edit"]` (the default) for both.
 
 ### Nix
 

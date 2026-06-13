@@ -37,7 +37,10 @@ rustPlatform.buildRustPackage {
 
   nativeBuildInputs = lib.optional (installManPages || installShellCompletions) installShellFiles;
 
-  buildFeatures = buildFeatures ++ [ "cli" ];
+  buildFeatures = buildFeatures ++ [
+    "cli"
+    "edit"
+  ];
 
   cargoTestFlags = [ "--lib" ];
 

@@ -21,6 +21,14 @@
 //! to that table, so [`FIELDS`] lists all scalar/list keys first and every
 //! sectioned property (`N`, `EMAIL`, `ADR`, ...) last.
 
+use alloc::{
+    borrow::ToOwned,
+    format,
+    string::{String, ToString},
+    vec,
+    vec::Vec,
+};
+
 use calcard::{
     common::IanaString,
     vcard::{
@@ -28,6 +36,7 @@ use calcard::{
         VCardVersion,
     },
 };
+use log::trace;
 use toml_edit::{DocumentMut, Item, TableLike};
 
 use crate::{
@@ -40,6 +49,12 @@ use crate::{
 /// An empty [`VCard`] yields a blank template: the required fields first, then
 /// the rest of the bare keys, sections last.
 pub fn project(vcard: &VCard, version: VCardVersion) -> String {
+    trace!(
+        "projecting {} entries to TOML (vCard {})",
+        vcard.entries.len(),
+        vcard::version_str(version),
+    );
+
     let mut out = String::new();
 
     out.push_str("# vCard ");
@@ -87,6 +102,8 @@ pub fn project(vcard: &VCard, version: VCardVersion) -> String {
 /// normalized (line folding, parameter casing) but lossless for unknown
 /// properties.
 pub fn apply(original: &VCard, edited_toml: &str, version: VCardVersion) -> Result<String> {
+    trace!("applying {} bytes of edited TOML", edited_toml.len());
+
     let doc: DocumentMut = edited_toml.parse().map_err(TcardError::ParseToml)?;
 
     let mut assembled = String::from("BEGIN:VCARD\r\n");
@@ -102,12 +119,17 @@ pub fn apply(original: &VCard, edited_toml: &str, version: VCardVersion) -> Resu
 
     let mut rebuilt = vcard::parse(&assembled)?;
     rebuilt.entries.retain(|entry| is_data(&entry.name));
+    let modeled = rebuilt.entries.len();
 
+    let mut preserved = 0;
     for entry in &original.entries {
         if is_data(&entry.name) && !is_modeled(&entry.name) {
             rebuilt.entries.push(entry.clone());
+            preserved += 1;
         }
     }
+
+    trace!("rebuilt {modeled} modeled entries, preserved {preserved} unmodeled");
 
     let mut out = String::new();
     rebuilt

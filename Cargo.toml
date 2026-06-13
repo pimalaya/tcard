@@ -17,8 +17,9 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
-default = ["cli"]
-cli = ["dep:anyhow", "dep:clap", "dep:edit", "dep:pimalaya-cli", "dep:uuid"]
+default = ["cli", "edit"]
+cli = ["dep:anyhow", "dep:clap", "dep:pimalaya-cli", "dep:uuid"]
+edit = ["cli", "dep:edit"]
 
 [profile.release]
 lto = "fat"
@@ -38,16 +39,13 @@ path = "src/lib.rs"
 [build-dependencies]
 pimalaya-cli = { version = "0.0.1", default-features = false, features = ["build"], optional = true }
 
-[dev-dependencies]
-tempfile = "3"
-
 [dependencies]
 anyhow = { version = "1", optional = true }
 calcard = "0.3"
 clap = { version = "4.4", features = ["derive", "env", "wrap_help"], optional = true }
 edit = { version = "0.1", optional = true }
-log = "0.4"
+log = { version = "0.4", default-features = false }
 pimalaya-cli = { version = "0.0.1", default-features = false, features = ["prompt", "terminal"], optional = true }
-thiserror = "2"
+thiserror = { version = "2", default-features = false }
 toml_edit = "0.22"
 uuid = { version = "1", features = ["v4"], optional = true }

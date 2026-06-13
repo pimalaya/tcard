@@ -4,10 +4,13 @@
 //! entries. Parse here, project to TOML in [`crate::template`], then let
 //! calcard serialize the result back.
 
+use alloc::format;
+
 use calcard::{
     Entry,
     vcard::{VCard, VCardVersion},
 };
+use log::trace;
 
 use crate::error::{Result, TcardError};
 
@@ -29,8 +32,14 @@ pub fn version_str(version: VCardVersion) -> &'static str {
 /// iCalendar payload is rejected.
 pub fn parse(input: &str) -> Result<VCard> {
     match VCard::parse(input) {
-        Ok(vcard) => Ok(vcard),
-        Err(Entry::VCard(vcard)) => Ok(vcard),
+        Ok(vcard) | Err(Entry::VCard(vcard)) => {
+            trace!(
+                "parsed {} entries from {} bytes of vCard",
+                vcard.entries.len(),
+                input.len(),
+            );
+            Ok(vcard)
+        }
         Err(Entry::ICalendar(_)) => Err(TcardError::NotAVcard),
         Err(Entry::InvalidLine(line)) => Err(TcardError::ParseVcard(line)),
         Err(other) => Err(TcardError::ParseVcard(format!("{other:?}"))),
