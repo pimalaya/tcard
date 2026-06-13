@@ -6,7 +6,7 @@ Think about [jCard](https://www.rfc-editor.org/rfc/rfc7095), but using TOML inst
 
 This repository ships two layers:
 
-- Low-level **library** projecting between a [calcard](https://crates.io/crates/calcard) `VCard` and TOML: `project` emits the scaffold, `apply` patches the edited buffer back onto the original text through a format-preserving editor, re-rendering only changed lines and keeping every unmodeled property (custom `X-*`, vendor extensions) verbatim.
+- Low-level **library** projecting between calcard [vCards](https://crates.io/crates/calcard) and TOML: `project` flattens a single card (or a blank file) at the root and emits two or more as `[[card]]` blocks, and `apply` detects the buffer's shape and patches it back onto the original text through a format-preserving editor, re-rendering only changed lines and keeping every unmodeled property (custom `X-*`, vendor extensions) verbatim.
 - High-level **CLI** with two verbs: `template` prints the TOML scaffold (blank or prefilled), `edit` runs the full "project → `$EDITOR` → apply" round-trip and emits the resulting vCard.
 
 ## Table of contents
@@ -23,19 +23,18 @@ This repository ships two layers:
 - [FAQ](#faq)
 - [License](#license)
 - [AI disclosure](#ai-disclosure)
+- [Contributing](CONTRIBUTING.md)
 - [Social](#social)
 - [Sponsoring](#sponsoring)
 
 ## Features
 
-- **vCard ↔ TOML projection**, backed by [calcard](https://crates.io/crates/calcard) (RFC 6350 / 6868 parser and writer).
-- **Discoverable form**: every modeled property is listed and empty (an empty value is ignored, like a removed line), prefilled when present, with a comment only where the value is not self-evident. Structured values (`N`, `ADR`) expand into named, ordered components instead of bare semicolons; typed properties (`email`, `tel`, ...) list their accepted `TYPE` values inline; new cards are seeded with a fresh `UID`.
-- **Minimal diff, lossless for unknown properties**: `apply` patches the original text through a format-preserving editor, re-rendering only the lines you changed. Anything tcard does not model (`X-ABLabel`, `item1.*`, vendor extensions), folding, casing and ordering are kept byte-for-byte. The TOML is an editing affordance, not an interchange format, so `apply` always works against the original card.
-- **Photo as a URI**: `PHOTO` accepts any local file or remote URL; no base64 blobs in your editor.
-- **Two verbs, no subcommand maze**: `template` always emits TOML, `edit` always emits a vCard; `SOURCE` resolves deterministically (`-` is stdin, an existing file is read, otherwise literal vCard contents, and omitting it starts a blank template).
-
-> [!TIP]
-> The library is `#![no_std]` (alloc only) and does just the vCard ↔ TOML projection. The `cli` feature adds the command-line tool; the `edit` feature adds the `$EDITOR` round-trip (the `edit` subcommand and in-place save). Without `edit`, the CLI exposes only `template`. The default feature set is declared in [Cargo.toml](./Cargo.toml).
+- Partial `no_std` support
+- vCard from/to TOML **projection**, backed by [calcard](https://crates.io/crates/calcard) (RFC 6350).
+- **Friendly** keys and values: cryptic property names become readable TOML keys.
+- **Structured** names and addresses: `N` and `ADR` expand into named components; typed properties (`email`, `tel`) list their accepted `TYPE` values.
+- **Discoverable** properties: prints all available properties with empty values by default, fill the ones you need.
+- **Minimal, lossless diffs**: `apply` patches the original text through a format-preserving editor, re-rendering only the lines you changed.
 
 ## Installation
 
@@ -63,7 +62,7 @@ For a more up-to-date version, check out the [pre-releases](https://github.com/p
 ### Cargo
 
 ```sh
-cargo install tcard --locked
+cargo install tcard --locked --features cli
 ```
 
 You can also use the git repository for a more up-to-date (but less stable) version:
@@ -76,10 +75,10 @@ To use `tcard` as a library, add it to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-tcard = { version = "0.0.1", default-features = false }
+tcard = "0.0.1"
 ```
 
-Dropping the default features gives the bare `#![no_std]` library (alloc only): just the `project` / `apply` projection over a calcard `VCard`, no clap, no editor. Add `features = ["cli"]` for the command-line tool without the `$EDITOR` round-trip, or `["cli", "edit"]` (the default) for both.
+The library has no default features: it is a slim `no_std` (plus `alloc`) build with no clap, no editor integration, just the `project` / `apply` projection over a calcard `VCard`. The CLI lives behind the opt-in `cli` feature (enabled above with `cargo install --features cli`).
 
 ### Nix
 
@@ -107,22 +106,27 @@ nix run
 
 ### Library
 
-Project a vCard to TOML, then fold edits back:
+Project a vCard file to TOML, then fold edits back:
 
-```rust,ignore
-use calcard::vcard::VCardVersion;
+```rust
 use tcard::{template, vcard};
 
-let card = vcard::parse(input)?;
+let input = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:Ada Lovelace\r\nEND:VCARD\r\n";
 
-// Emit the prefilled, documented scaffold.
-let scaffold = template::project(&card, VCardVersion::V4_0);
+// A file may hold several cards; project them all.
+let cards = vcard::parse_all(input).unwrap();
+let version = cards[0].version().unwrap();
 
-// ... user edits `scaffold` in an editor ...
+// Emit the prefilled scaffold: a single card flattens at the root, two or
+// more become [[card]] blocks.
+let scaffold = template::project(&cards, version);
+assert!(scaffold.contains("full-name = \"Ada Lovelace\""));
 
-// Fold the edits back onto the original text: only changed lines are
-// re-rendered, everything else stays byte-for-byte identical.
-let updated = template::apply(input, &edited)?;
+// After the user edits the scaffold, fold it back onto the original text:
+// only changed lines are re-rendered, everything else stays byte-for-byte.
+let edited = scaffold.replace("Ada Lovelace", "Ada King");
+let updated = template::apply(input, &edited).unwrap();
+assert!(updated.contains("FN:Ada King"));
 ```
 
 ### CLI
@@ -157,35 +161,27 @@ tcard edit --version 3.0 --output bob.vcf
 
 ## FAQ
 
-<details>
-  <summary>How does `tcard edit` pick the editor?</summary>
+### How does `tcard edit` pick the editor?
 
-  The [edit](https://crates.io/crates/edit) crate resolves `$VISUAL` first, then `$EDITOR`, then an OS default. tcard does not expose a config override: set `VISUAL` / `EDITOR` in your shell rc file.
-</details>
+The [edit](https://crates.io/crates/edit) crate resolves `$VISUAL` first, then `$EDITOR`, then an OS default. tcard does not expose a config override: set `VISUAL` / `EDITOR` in your shell rc file.
 
-<details>
-  <summary>Will tcard reformat my whole card on edit?</summary>
+### Will tcard reformat my whole card on edit?
 
-  No. `apply` patches the original text through a format-preserving editor (the vCard analog of toml_edit): only the lines of modeled fields you actually changed are re-rendered, so the diff is minimal. Folding, parameter casing (`TYPE=work` stays `TYPE=work`), property order and line endings of every untouched line are kept byte-for-byte.
-</details>
+No. `apply` patches the original text through a format-preserving editor (the vCard analog of toml_edit): only the lines of modeled fields you actually changed are re-rendered, so the diff is minimal. Folding, parameter casing (`TYPE=work` stays `TYPE=work`), property order and line endings of every untouched line are kept byte-for-byte.
 
-<details>
-  <summary>What happens to properties tcard does not list?</summary>
+### What happens to properties tcard does not list?
 
-  They are kept verbatim. The scaffold only surfaces the modeled vocabulary, but `apply` carries every other property (custom `X-*`, Apple `item1.*` groups, vendor extensions) straight from the original card into the result.
-</details>
+They are kept verbatim. The scaffold only surfaces the modeled vocabulary, but `apply` carries every other property (custom `X-*`, Apple `item1.*` groups, vendor extensions) straight from the original card into the result.
 
-<details>
-  <summary>How to debug the CLI?</summary>
+### How do I debug the CLI?
 
-  Use `--log <level>` where `<level>` is one of `off`, `error`, `warn`, `info`, `debug`, `trace`:
+Use `--log <level>` where `<level>` is one of `off`, `error`, `warn`, `info`, `debug`, `trace`:
 
-  ```sh
-  tcard --log trace template contact.vcf
-  ```
+```sh
+tcard --log trace template contact.vcf
+```
 
-  The `RUST_LOG` environment variable, when set, overrides `--log` and supports per-target filters (see the [env_logger](https://docs.rs/env_logger/latest/env_logger/#enabling-logging) documentation). `RUST_BACKTRACE=1` enables full error backtraces. Logs are written to `stderr`.
-</details>
+The `RUST_LOG` environment variable, when set, overrides `--log` and supports per-target filters (see the [env_logger](https://docs.rs/env_logger/latest/env_logger/#enabling-logging) documentation). `RUST_BACKTRACE=1` enables full error backtraces. Logs are written to `stderr`.
 
 ## License
 
@@ -210,7 +206,7 @@ This project is developed with AI assistance. This section documents how, so use
 
 - **Limitations**: AI models occasionally produce code that compiles and passes tests but is subtly wrong: off-by-one errors, missed edge cases, plausible but nonexistent APIs, stale RFC references. The verification workflow catches most of this; it does not catch all of it. Bug reports are welcome and taken seriously.
 
-- **Last reviewed**: 12/06/2026
+- **Last reviewed**: 14/06/2026
 
 ## Social
 

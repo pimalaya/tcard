@@ -1,10 +1,10 @@
 [package]
 name = "tcard"
-description = "CLI and lib to edit vCards as ergonomic TOML"
+description = "CLI & lib to edit vCards as ergonomic TOML"
 version = "0.0.1"
 authors = ["soywod <clement.douin@posteo.net>"]
-rust-version = "1.88"
 edition = "2024"
+rust-version = "1.88"
 license = "MIT OR Apache-2.0"
 categories = ["command-line-utilities", "text-processing"]
 keywords = ["vcard", "contact", "toml", "carddav", "editor"]
@@ -17,9 +17,8 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
-default = ["cli", "edit"]
-cli = ["dep:anyhow", "dep:clap", "dep:pimalaya-cli", "dep:uuid"]
-edit = ["cli", "dep:edit"]
+default = []
+cli = ["dep:anyhow", "dep:clap", "dep:edit", "dep:pimalaya-cli", "dep:uuid"]
 
 [profile.release]
 lto = "fat"

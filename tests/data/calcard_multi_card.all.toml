@@ -1,0 +1,174 @@
+# vCard 3.0 as TOML, edited by tcard.
+#
+# Each card is a [[card]] block; repeat a block for repeated
+# cards, delete one you do not need. Empty fields and empty
+# blocks are ignored. Properties tcard does not model are kept
+# verbatim, not shown here.
+
+[[card]]
+full-name = "Derik Stenerson"	# required
+kind = ""			# individual, group, org
+nickname = []
+organization = ["Microsoft Corporation"]
+title = ""
+role = ""
+categories = []
+language = []			# en, fr
+birthday = ""			# 1990-05-23
+anniversary = ""		# 2014-09-21
+geo = ""			# geo:37.78,-122.40
+timezone = ""			# America/New_York
+note = ""
+
+[card.name]	# required
+family = "Stenerson"
+given = "Derik"
+additional = ""
+prefixes = ""
+suffixes = ""
+
+[card.gender]
+sex = ""	# F, M, O, N, U
+identity = ""
+
+[[card.email]]
+type = "INTERNET"		# home, work
+value = "deriks@Microsoft.com"	# email address
+
+[[card.phone]]
+type = "work,MSG"		# home, work, cell, fax, voice, video, pager, text, textphone
+value = "+1-425-936-5522"	# +1-555-0100
+[[card.phone]]
+type = "work,fax"		# home, work, cell, fax, voice, video, pager, text, textphone
+value = "+1-425-936-7329"	# +1-555-0100
+
+[[card.address]]
+type = "work,POSTAL,PARCEL"	# home, work
+pobox = ""			# deprecated
+ext = ""			# deprecated
+street = "One Microsoft Way"
+locality = "Redmond"
+region = "WA"
+code = "98052-6399"
+country = "USA"
+
+[[card.photo]]
+value = ""	# file:// or https://
+
+[[card.url]]
+type = ""	# home, work
+value = ""	# https://example.com
+
+[[card.messaging]]
+type = ""	# home, work
+value = ""	# xmpp:jane@example.com
+
+[[card]]
+full-name = "Anik Ganguly"	# required
+kind = ""			# individual, group, org
+nickname = []
+organization = [" Open Text Inc."]
+title = ""
+role = ""
+categories = []
+language = []			# en, fr
+birthday = ""			# 1990-05-23
+anniversary = ""		# 2014-09-21
+geo = ""			# geo:37.78,-122.40
+timezone = ""			# America/New_York
+note = ""
+
+[card.name]	# required
+family = "Ganguly"
+given = "Anik"
+additional = ""
+prefixes = ""
+suffixes = ""
+
+[card.gender]
+sex = ""	# F, M, O, N, U
+identity = ""
+
+[[card.email]]
+type = "INTERNET"		# home, work
+value = "ganguly@acm.org"	# email address
+
+[[card.phone]]
+type = "work,MSG"		# home, work, cell, fax, voice, video, pager, text, textphone
+value = "+1-734-542-5955"	# +1-555-0100
+
+[[card.address]]
+type = "work,POSTAL,PARCEL"	# home, work
+pobox = ""			# deprecated
+ext = "Suite 101"		# deprecated
+street = "38777 West Six Mile Road"
+locality = "Livonia"
+region = "MI"
+code = "48152"
+country = "USA"
+
+[[card.photo]]
+value = ""	# file:// or https://
+
+[[card.url]]
+type = ""	# home, work
+value = ""	# https://example.com
+
+[[card.messaging]]
+type = ""	# home, work
+value = ""	# xmpp:jane@example.com
+
+[[card]]
+full-name = "Robert Moskowitz"	# required
+kind = ""			# individual, group, org
+nickname = []
+organization = []
+title = ""
+role = ""
+categories = []
+language = []			# en, fr
+birthday = ""			# 1990-05-23
+anniversary = ""		# 2014-09-21
+geo = ""			# geo:37.78,-122.40
+timezone = ""			# America/New_York
+note = ""
+
+[card.name]	# required
+family = "Moskowitz"
+given = "Robert"
+additional = ""
+prefixes = ""
+suffixes = ""
+
+[card.gender]
+sex = ""	# F, M, O, N, U
+identity = ""
+
+[[card.email]]
+type = "INTERNET"			# home, work
+value = "rgm-ietf@htt-consult.com"	# email address
+
+[[card.phone]]
+type = ""	# home, work, cell, fax, voice, video, pager, text, textphone
+value = ""	# +1-555-0100
+
+[[card.address]]
+type = ""	# home, work
+pobox = ""	# deprecated
+ext = ""	# deprecated
+street = ""
+locality = ""
+region = ""
+code = ""
+country = ""
+
+[[card.photo]]
+value = ""	# file:// or https://
+
+[[card.url]]
+type = ""	# home, work
+value = ""	# https://example.com
+
+[[card.messaging]]
+type = ""	# home, work
+value = ""	# xmpp:jane@example.com

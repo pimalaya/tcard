@@ -2,15 +2,15 @@
 //!
 //! - `template [SOURCE]`: print the TOML scaffold, blank or prefilled from a
 //!   vCard. Always emits TOML.
-//! - `edit [SOURCE]` (requires the `edit` feature): project, open `$EDITOR`,
-//!   apply the edits back onto the source, and emit the resulting vCard.
+//! - `edit [SOURCE]`: project, open `$EDITOR`, apply the edits back onto the
+//!   source, and emit the resulting vCard. Always emits a vCard.
 //!
 //! `SOURCE` resolves deterministically: `-` reads stdin, an existing file is
 //! read, otherwise the value is treated as literal vCard contents, and omitting
 //! it starts from a blank template. The TOML is an editing affordance; the only
 //! path back to a vCard is `edit`, where the original is still in hand.
 
-use alloc::{format, string::String};
+use alloc::{format, string::String, vec::Vec};
 use std::{
     fs,
     io::{Read, Write, stdin, stdout},
@@ -29,10 +29,11 @@ use pimalaya_cli::{
     },
     long_version,
     printer::Printer,
+    prompt,
 };
 use uuid::Uuid;
 
-use crate::{template, vcard};
+use crate::{error::TcardError, template, vcard};
 
 /// Root CLI parser.
 #[derive(Parser, Debug)]
@@ -55,7 +56,6 @@ pub struct Cli {
 pub enum Command {
     #[command(visible_alias = "tpl")]
     Template(TemplateCommand),
-    #[cfg(feature = "edit")]
     Edit(EditCommand),
 
     Completions(CompletionCommand),
@@ -66,7 +66,6 @@ impl Command {
     pub fn execute(self, printer: &mut impl Printer) -> Result<()> {
         match self {
             Self::Template(cmd) => cmd.execute(printer),
-            #[cfg(feature = "edit")]
             Self::Edit(cmd) => cmd.execute(printer),
             Self::Completions(cmd) => cmd.execute(printer, Cli::command()),
             Self::Manuals(cmd) => cmd.execute(printer, Cli::command()),
@@ -90,15 +89,13 @@ pub struct TemplateCommand {
 
 impl TemplateCommand {
     pub fn execute(self, _printer: &mut impl Printer) -> Result<()> {
-        let (card, version, _) = load(&self.source, &self.version)?;
-        let toml = template::project(&card, version);
-
+        let (cards, version, _) = load(&self.source, &self.version)?;
+        let toml = template::project(&cards, version);
         write_out(self.output.as_deref(), toml.as_bytes())
     }
 }
 
 /// Edit a vCard as TOML in `$EDITOR`, blank or prefilled from a source.
-#[cfg(feature = "edit")]
 #[derive(Debug, Parser)]
 pub struct EditCommand {
     #[command(flatten)]
@@ -111,17 +108,35 @@ pub struct EditCommand {
     pub version: VersionArg,
 }
 
-#[cfg(feature = "edit")]
 impl EditCommand {
-    pub fn execute(self, _printer: &mut impl Printer) -> Result<()> {
-        let (card, version, src) = load(&self.source, &self.version)?;
-        let scaffold = template::project(&card, version);
+    pub fn execute(self, printer: &mut impl Printer) -> Result<()> {
+        let (cards, version, src) = load(&self.source, &self.version)?;
+        let scaffold = template::project(&cards, version);
+
+        let mut builder = edit::Builder::new();
+        builder.suffix(".toml");
 
         debug!("opening editor on the projected scaffold");
-        let edited = edit::edit_with_builder(&scaffold, edit::Builder::new().suffix(".toml"))
-            .context("Cannot spawn editor")?;
+        let mut edited =
+            edit::edit_with_builder(&scaffold, &builder).context("Cannot spawn editor")?;
 
-        let vcard = template::apply(&src, &edited)?;
+        // A broken edit is recoverable: re-open the editor seeded with the
+        // user's own buffer so the edits are never lost. JSON output is
+        // non-interactive, so the error just propagates there.
+        let vcard = loop {
+            match template::apply(&src, &edited) {
+                Ok(vcard) => break vcard,
+                Err(TcardError::ParseToml(err)) if !printer.is_json() => {
+                    let message = format!("Cannot parse TOML buffer:\n\n{err}\nRe-edit to fix it?");
+                    if !prompt::bool(message, true)? {
+                        return Err(TcardError::ParseToml(err).into());
+                    }
+                    edited = edit::edit_with_builder(&edited, &builder)
+                        .context("Cannot spawn editor")?;
+                }
+                Err(err) => return Err(err.into()),
+            }
+        };
 
         let target = self.output.or_else(|| self.source.file_path());
         write_out(target.as_deref(), vcard.as_bytes())
@@ -213,17 +228,20 @@ impl From<CardVersion> for VCardVersion {
     }
 }
 
-/// Load the source vCard with its raw text and resolved version: the
-/// card's own version when present, else the requested one. The text is
-/// returned so [`template::apply`] can preserve every untouched byte.
-fn load(source: &SourceArg, version: &VersionArg) -> Result<(VCard, VCardVersion, String)> {
+/// Load every source vCard with the raw text and resolved version: the
+/// first card's own version when present, else the requested one. The text
+/// is returned so [`template::apply`] can preserve every untouched byte.
+fn load(source: &SourceArg, version: &VersionArg) -> Result<(Vec<VCard>, VCardVersion, String)> {
     let requested: VCardVersion = version.version.into();
 
     match source.resolve()? {
         Some(text) => {
-            let card = vcard::parse(&text)?;
-            let version = card.version().unwrap_or(requested);
-            Ok((card, version, text))
+            let cards = vcard::parse_all(&text)?;
+            let version = cards
+                .first()
+                .and_then(|card| card.version())
+                .unwrap_or(requested);
+            Ok((cards, version, text))
         }
         None => {
             // A new card is seeded with a fresh UID so the contact has
@@ -233,8 +251,8 @@ fn load(source: &SourceArg, version: &VersionArg) -> Result<(VCard, VCardVersion
                 "BEGIN:VCARD\r\nVERSION:{requested}\r\nUID:urn:uuid:{}\r\nEND:VCARD\r\n",
                 Uuid::new_v4()
             );
-            let card = vcard::parse(&text)?;
-            Ok((card, requested, text))
+            let cards = vcard::parse_all(&text)?;
+            Ok((cards, requested, text))
         }
     }
 }

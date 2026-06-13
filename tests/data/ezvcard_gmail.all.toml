@@ -1,0 +1,67 @@
+# vCard 3.0 as TOML, edited by tcard.
+#
+# Fill what you need; empty fields are ignored. Properties
+# tcard does not model are kept verbatim, not shown here.
+
+full-name = "Mr. John Richter, James Doe Sr."	# required
+kind = ""					# individual, group, org
+nickname = []
+organization = ["IBM"]
+title = "Money Counter"
+role = ""
+categories = []
+language = []					# en, fr
+birthday = ""					# 1990-05-23
+anniversary = ""				# 2014-09-21
+geo = ""					# geo:37.78,-122.40
+timezone = ""					# America/New_York
+note = """
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+Favotire Color: Blue"""
+
+[name]	# required
+family = "Doe"
+given = "John"
+additional = "Richter, James"
+prefixes = "Mr."
+suffixes = "Sr."
+
+[gender]
+sex = ""	# F, M, O, N, U
+identity = ""
+
+[[email]]
+type = "INTERNET,home"		# home, work
+value = "john.doe@ibm.com"	# email address
+
+[[phone]]
+type = "cell"		# home, work, cell, fax, voice, video, pager, text, textphone
+value = "905-555-1234"	# +1-555-0100
+[[phone]]
+type = "home"		# home, work, cell, fax, voice, video, pager, text, textphone
+value = "905-666-1234"	# +1-555-0100
+
+[[address]]
+type = "home"												# home, work
+pobox = ""												# deprecated
+ext = """
+Crescent moon drive
+555-asd
+Nice Area, Albaney, New York 12345
+United States of America"""	# deprecated
+street = ""
+locality = ""
+region = ""
+code = ""
+country = ""
+
+[[photo]]
+value = ""	# file:// or https://
+
+[[url]]
+type = "work"			# home, work
+value = "http://www.ibm.com"	# https://example.com
+
+[[messaging]]
+type = ""	# home, work
+value = ""	# xmpp:jane@example.com

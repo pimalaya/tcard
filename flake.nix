@@ -1,5 +1,5 @@
 {
-  description = "CLI and lib to edit vCards as ergonomic TOML, written in Rust";
+  description = "CLI & lib to edit vCards as ergonomic TOML, written in Rust";
 
   inputs = {
     nixpkgs = {

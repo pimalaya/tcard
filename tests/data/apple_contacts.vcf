@@ -1,0 +1,15 @@
+BEGIN:VCARD
+VERSION:3.0
+N:Appleseed;John;;;
+FN:John Appleseed
+ORG:Apple Inc.;
+TITLE:Engineer
+EMAIL;type=INTERNET;type=HOME;type=pref:john@icloud.com
+TEL;type=CELL;type=VOICE;type=pref:+1-555-0100
+item1.ADR;type=HOME;type=pref:;;1 Infinite Loop;Cupertino;CA;95014;USA
+item1.X-ABADR:us
+item2.URL;type=pref:https://www.apple.com
+item2.X-ABLabel:_$!<HomePage>!$_
+PHOTO;VALUE=uri:https://example.com/john.png
+UID:urn:uuid:abc-123
+END:VCARD

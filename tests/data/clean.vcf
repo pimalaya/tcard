@@ -1,0 +1,13 @@
+BEGIN:VCARD
+VERSION:4.0
+UID:urn:uuid:1f-ada
+FN:Ada Lovelace
+NICKNAME:Ada
+ORG:Analytical Engine;Research
+TITLE:Mathematician
+CATEGORIES:science,history
+NOTE:First programmer
+EMAIL;TYPE=work:ada@analytical.example
+URL;TYPE=home:https://example.com/ada
+X-CUSTOM:keep verbatim
+END:VCARD

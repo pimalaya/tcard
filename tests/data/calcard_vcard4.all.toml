@@ -1,0 +1,66 @@
+# vCard 4.0 as TOML, edited by tcard.
+#
+# Fill what you need; empty fields are ignored. Properties
+# tcard does not model are kept verbatim, not shown here.
+
+full-name = "Forrest Gump"	# required
+kind = ""			# individual, group, org
+nickname = []
+organization = ["Bubba Gump Shrimp Co."]
+title = "Shrimp Man"
+role = ""
+categories = []
+language = []			# en, fr
+birthday = ""			# 1990-05-23
+anniversary = ""		# 2014-09-21
+geo = ""			# geo:37.78,-122.40
+timezone = ""			# America/New_York
+note = ""
+
+[name]
+family = "Gump"
+given = "Forrest"
+additional = ""
+prefixes = "Mr."
+suffixes = ""
+
+[gender]
+sex = ""	# F, M, O, N, U
+identity = ""
+
+[[email]]
+type = ""				# home, work
+value = "forrestgump@example.com"	# email address
+
+[[phone]]
+type = "work,voice"		# home, work, cell, fax, voice, video, pager, text, textphone
+value = "tel:+1-111-555-1212"	# +1-555-0100
+[[phone]]
+type = "home,voice"		# home, work, cell, fax, voice, video, pager, text, textphone
+value = "tel:+1-404-555-1212"	# +1-555-0100
+
+[[address]]
+type = "work"	# home, work
+street = "100 Waters Edge"
+locality = "Baytown"
+region = "LA"
+code = "30314"
+country = "United States of America"
+[[address]]
+type = "home"	# home, work
+street = "42 Plantation St."
+locality = "Baytown"
+region = "LA"
+code = "30314"
+country = "United States of America"
+
+[[photo]]
+value = "http://www.example.com/dir_photos/my_photo.gif"	# file:// or https://
+
+[[url]]
+type = ""	# home, work
+value = ""	# https://example.com
+
+[[messaging]]
+type = ""	# home, work
+value = ""	# xmpp:jane@example.com

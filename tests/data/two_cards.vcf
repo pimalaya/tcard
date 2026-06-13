@@ -1,0 +1,12 @@
+BEGIN:VCARD
+VERSION:4.0
+UID:urn:uuid:card-1
+FN:Grace Hopper
+EMAIL;TYPE=work:grace@navy.example
+END:VCARD
+BEGIN:VCARD
+VERSION:4.0
+UID:urn:uuid:card-2
+FN:Alan Turing
+EMAIL;TYPE=home:alan@bletchley.example
+END:VCARD

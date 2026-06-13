@@ -15,34 +15,26 @@
 }:
 
 let
-  version = "0.0.1";
-  hash = "";
-  cargoHash = "";
-
   emulator = stdenv.hostPlatform.emulator buildPackages;
   exe = stdenv.hostPlatform.extensions.executable;
 
 in
 rustPlatform.buildRustPackage {
-  inherit cargoHash version buildNoDefaultFeatures;
+  inherit buildNoDefaultFeatures;
 
   pname = "tcard";
+  version = "0.0.1";
+  cargoHash = "";
 
   src = fetchFromGitHub {
-    inherit hash;
     owner = "pimalaya";
     repo = "tcard";
-    rev = "v${version}";
+    rev = "v0.0.1";
+    hash = "";
   };
 
-  nativeBuildInputs = lib.optional (installManPages || installShellCompletions) installShellFiles;
-
-  buildFeatures = buildFeatures ++ [
-    "cli"
-    "edit"
-  ];
-
-  cargoTestFlags = [ "--lib" ];
+  nativeBuildInputs = [ installShellFiles ];
+  buildFeatures = buildFeatures ++ [ "cli" ];
 
   postInstall =
     lib.optionalString (lib.hasInfix "wine" emulator) ''
@@ -65,7 +57,7 @@ rustPlatform.buildRustPackage {
     '';
 
   meta = {
-    description = "CLI and lib to edit vCards as ergonomic TOML, written in Rust";
+    description = "CLI & lib to edit vCards as ergonomic TOML, written in Rust";
     mainProgram = "tcard";
     homepage = "https://github.com/pimalaya/tcard";
     changelog = "https://github.com/pimalaya/tcard/blob/master/CHANGELOG.md";

@@ -1,0 +1,112 @@
+# vCard 4.0 as TOML, edited by tcard.
+#
+# Each card is a [[card]] block; repeat a block for repeated
+# cards, delete one you do not need. Empty fields and empty
+# blocks are ignored. Properties tcard does not model are kept
+# verbatim, not shown here.
+
+[[card]]
+full-name = "Grace Hopper"	# required
+kind = ""			# individual, group, org
+nickname = []
+organization = []
+title = ""
+role = ""
+categories = []
+language = []			# en, fr
+birthday = ""			# 1990-05-23
+anniversary = ""		# 2014-09-21
+geo = ""			# geo:37.78,-122.40
+timezone = ""			# America/New_York
+note = ""
+
+[card.name]
+family = ""
+given = ""
+additional = ""
+prefixes = ""
+suffixes = ""
+
+[card.gender]
+sex = ""	# F, M, O, N, U
+identity = ""
+
+[[card.email]]
+type = "work"			# home, work
+value = "grace@navy.example"	# email address
+
+[[card.phone]]
+type = ""	# home, work, cell, fax, voice, video, pager, text, textphone
+value = ""	# +1-555-0100
+
+[[card.address]]
+type = ""	# home, work
+street = ""
+locality = ""
+region = ""
+code = ""
+country = ""
+
+[[card.photo]]
+value = ""	# file:// or https://
+
+[[card.url]]
+type = ""	# home, work
+value = ""	# https://example.com
+
+[[card.messaging]]
+type = ""	# home, work
+value = ""	# xmpp:jane@example.com
+
+[[card]]
+full-name = "Alan Turing"	# required
+kind = ""			# individual, group, org
+nickname = []
+organization = []
+title = ""
+role = ""
+categories = []
+language = []			# en, fr
+birthday = ""			# 1990-05-23
+anniversary = ""		# 2014-09-21
+geo = ""			# geo:37.78,-122.40
+timezone = ""			# America/New_York
+note = ""
+
+[card.name]
+family = ""
+given = ""
+additional = ""
+prefixes = ""
+suffixes = ""
+
+[card.gender]
+sex = ""	# F, M, O, N, U
+identity = ""
+
+[[card.email]]
+type = "home"				# home, work
+value = "alan@bletchley.example"	# email address
+
+[[card.phone]]
+type = ""	# home, work, cell, fax, voice, video, pager, text, textphone
+value = ""	# +1-555-0100
+
+[[card.address]]
+type = ""	# home, work
+street = ""
+locality = ""
+region = ""
+code = ""
+country = ""
+
+[[card.photo]]
+value = ""	# file:// or https://
+
+[[card.url]]
+type = ""	# home, work
+value = ""	# https://example.com
+
+[[card.messaging]]
+type = ""	# home, work
+value = ""	# xmpp:jane@example.com

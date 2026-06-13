@@ -1,0 +1,56 @@
+# vCard 4.0 as TOML, edited by tcard.
+#
+# Fill what you need; empty fields are ignored. Properties
+# tcard does not model are kept verbatim, not shown here.
+
+full-name = "Ada Lovelace"	# required
+kind = ""			# individual, group, org
+nickname = ["Ada"]
+organization = ["Analytical Engine", "Research"]
+title = "Mathematician"
+role = ""
+categories = ["science", "history"]
+language = []			# en, fr
+birthday = ""			# 1990-05-23
+anniversary = ""		# 2014-09-21
+geo = ""			# geo:37.78,-122.40
+timezone = ""			# America/New_York
+note = "First programmer"
+
+[name]
+family = ""
+given = ""
+additional = ""
+prefixes = ""
+suffixes = ""
+
+[gender]
+sex = ""	# F, M, O, N, U
+identity = ""
+
+[[email]]
+type = "work"				# home, work
+value = "ada@analytical.example"	# email address
+
+[[phone]]
+type = ""	# home, work, cell, fax, voice, video, pager, text, textphone
+value = ""	# +1-555-0100
+
+[[address]]
+type = ""	# home, work
+street = ""
+locality = ""
+region = ""
+code = ""
+country = ""
+
+[[photo]]
+value = ""	# file:// or https://
+
+[[url]]
+type = "home"				# home, work
+value = "https://example.com/ada"	# https://example.com
+
+[[messaging]]
+type = ""	# home, work
+value = ""	# xmpp:jane@example.com

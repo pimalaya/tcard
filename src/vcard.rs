@@ -4,10 +4,10 @@
 //! entries. Parse here, project to TOML in [`crate::template`], then let
 //! calcard serialize the result back.
 
-use alloc::format;
+use alloc::{format, vec::Vec};
 
 use calcard::{
-    Entry,
+    Entry, Parser,
     vcard::{VCard, VCardVersion},
 };
 use log::trace;
@@ -44,4 +44,25 @@ pub fn parse(input: &str) -> Result<VCard> {
         Err(Entry::InvalidLine(line)) => Err(TcardError::ParseVcard(line)),
         Err(other) => Err(TcardError::ParseVcard(format!("{other:?}"))),
     }
+}
+
+/// Parse a whole vCard stream into every [`VCard`] it contains, in
+/// document order (a file may hold several cards). An iCalendar payload
+/// or a genuinely invalid line is rejected.
+pub fn parse_all(input: &str) -> Result<Vec<VCard>> {
+    let mut parser = Parser::new(input);
+    let mut cards = Vec::new();
+
+    loop {
+        match parser.entry() {
+            Entry::VCard(card) => cards.push(card),
+            Entry::Eof => break,
+            Entry::ICalendar(_) => return Err(TcardError::NotAVcard),
+            Entry::InvalidLine(line) => return Err(TcardError::ParseVcard(line)),
+            other => return Err(TcardError::ParseVcard(format!("{other:?}"))),
+        }
+    }
+
+    trace!("parsed {} card(s) from {} bytes", cards.len(), input.len());
+    Ok(cards)
 }

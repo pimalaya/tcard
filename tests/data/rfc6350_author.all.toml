@@ -1,0 +1,59 @@
+# vCard 4.0 as TOML, edited by tcard.
+#
+# Fill what you need; empty fields are ignored. Properties
+# tcard does not model are kept verbatim, not shown here.
+
+full-name = "Simon Perreault"		# required
+kind = ""				# individual, group, org
+nickname = []
+organization = ["Viagenie"]
+title = ""
+role = ""
+categories = []
+language = ["fr", "en"]			# en, fr
+birthday = ""				# 1990-05-23
+anniversary = ""			# 2014-09-21
+geo = "geo:46.772673,-71.282945"	# geo:37.78,-122.40
+timezone = ""				# America/New_York
+note = ""
+
+[name]
+family = "Perreault"
+given = "Simon"
+additional = ""
+prefixes = ""
+suffixes = "ing. jr"
+
+[gender]
+sex = "M"	# F, M, O, N, U
+identity = ""
+
+[[email]]
+type = "work"				# home, work
+value = "simon.perreault@viagenie.ca"	# email address
+
+[[phone]]
+type = "work,voice"			# home, work, cell, fax, voice, video, pager, text, textphone
+value = "tel:+1-418-656-9254;ext=102"	# +1-555-0100
+[[phone]]
+type = "work,cell,voice,video,text"	# home, work, cell, fax, voice, video, pager, text, textphone
+value = "tel:+1-418-262-6501"		# +1-555-0100
+
+[[address]]
+type = "work"	# home, work
+street = "2875 Laurier"
+locality = "Quebec"
+region = "QC"
+code = "G1V 2M2"
+country = "Canada"
+
+[[photo]]
+value = ""	# file:// or https://
+
+[[url]]
+type = "home"			# home, work
+value = "http://nomis80.org"	# https://example.com
+
+[[messaging]]
+type = ""	# home, work
+value = ""	# xmpp:jane@example.com

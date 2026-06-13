@@ -1,0 +1,58 @@
+# vCard 3.0 as TOML, edited by tcard.
+#
+# Fill what you need; empty fields are ignored. Properties
+# tcard does not model are kept verbatim, not shown here.
+
+full-name = "John Appleseed"	# required
+kind = ""			# individual, group, org
+nickname = []
+organization = ["Apple Inc.", ""]
+title = "Engineer"
+role = ""
+categories = []
+language = []			# en, fr
+birthday = ""			# 1990-05-23
+anniversary = ""		# 2014-09-21
+geo = ""			# geo:37.78,-122.40
+timezone = ""			# America/New_York
+note = ""
+
+[name]	# required
+family = "Appleseed"
+given = "John"
+additional = ""
+prefixes = ""
+suffixes = ""
+
+[gender]
+sex = ""	# F, M, O, N, U
+identity = ""
+
+[[email]]
+type = "INTERNET,home,pref"	# home, work
+value = "john@icloud.com"	# email address
+
+[[phone]]
+type = "cell,voice,pref"	# home, work, cell, fax, voice, video, pager, text, textphone
+value = "+1-555-0100"		# +1-555-0100
+
+[[address]]
+type = "home,pref"	# home, work
+pobox = ""		# deprecated
+ext = ""		# deprecated
+street = "1 Infinite Loop"
+locality = "Cupertino"
+region = "CA"
+code = "95014"
+country = "USA"
+
+[[photo]]
+value = "https://example.com/john.png"	# file:// or https://
+
+[[url]]
+type = "pref"			# home, work
+value = "https://www.apple.com"	# https://example.com
+
+[[messaging]]
+type = ""	# home, work
+value = ""	# xmpp:jane@example.com
