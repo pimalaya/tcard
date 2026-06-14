@@ -1,13 +1,47 @@
-# tcard [![Documentation](https://img.shields.io/docsrs/tcard?style=flat&logo=docs.rs&logoColor=white)](https://docs.rs/tcard/latest/tcard) [![Matrix](https://img.shields.io/badge/chat-%23pimalaya-blue?style=flat&logo=matrix&logoColor=white)](https://matrix.to/#/#pimalaya:matrix.org) [![Mastodon](https://img.shields.io/badge/news-%40pimalaya-blue?style=flat&logo=mastodon&logoColor=white)](https://fosstodon.org/@pimalaya)
+# tCard [![Documentation](https://img.shields.io/docsrs/tcard?style=flat&logo=docs.rs&logoColor=white)](https://docs.rs/tcard/latest/tcard) [![Matrix](https://img.shields.io/badge/chat-%23pimalaya-blue?style=flat&logo=matrix&logoColor=white)](https://matrix.to/#/#pimalaya:matrix.org) [![Mastodon](https://img.shields.io/badge/news-%40pimalaya-blue?style=flat&logo=mastodon&logoColor=white)](https://fosstodon.org/@pimalaya)
 
-CLI and lib to edit [vCards](https://www.rfc-editor.org/rfc/rfc6350) as ergonomic TOML.
+CLI & lib to edit [vCards](https://www.rfc-editor.org/rfc/rfc6350) as ergonomic TOML.
 
-Think about [jCard](https://www.rfc-editor.org/rfc/rfc7095), but using TOML instead!
+```sh
+$ tcard edit
+```
 
-This repository ships two layers:
+```toml
+full-name = "Jane Doe"
+nickname = ["Janie"]
+organization = ["Acme", "Engineering"]
+title = "Engineer"
+birthday = "19960415"
 
-- Low-level **library** projecting between calcard [vCards](https://crates.io/crates/calcard) and TOML: `project` flattens a single card (or a blank file) at the root and emits two or more as `[[card]]` blocks, and `apply` detects the buffer's shape and patches it back onto the original text through a format-preserving editor, re-rendering only changed lines and keeping every unmodeled property (custom `X-*`, vendor extensions) verbatim.
-- High-level **CLI** with two verbs: `template` prints the TOML scaffold (blank or prefilled), `edit` runs the full "project → `$EDITOR` → apply" round-trip and emits the resulting vCard.
+[[email]]
+type = "work"
+value = "jane@acme.example"
+
+[[phone]]
+type = "cell"
+value = "+1-555-0100"
+```
+
+Output:
+
+```vcf
+BEGIN:VCARD
+VERSION:4.0
+UID:urn:uuid:1f34e439-ca07-446f-af28-f5b7d3afcfc8
+FN:Jane Doe
+NICKNAME:Janie
+ORG:Acme;Engineering
+TITLE:Engineer
+BDAY:19960415
+EMAIL;TYPE=work:jane@acme.example
+TEL;TYPE=cell:+1-555-0100
+END:VCARD
+```
+
+This repository ships two interfaces:
+
+- Rust **library** to generate vCard from/to TOML projection
+- **CLI** to print and/or edit TOML template using `$EDITOR`
 
 ## Table of contents
 
@@ -197,15 +231,10 @@ at your option.
 This project is developed with AI assistance. This section documents how, so users and downstream packagers can make informed decisions.
 
 - **Tools**: Claude Code (Anthropic), Opus 4.8, invoked locally with a persistent project-scoped memory and a small set of repo-specific rules.
-
 - **Used for**: Refactors, mechanical multi-file edits, boilerplate (feature gates, error enums, derive macros, trait impls), test scaffolding, doc polish, exploratory design conversations.
-
 - **Not used for**: Engineering, critical code, git manipulation (commit, merge, rebase…), real-world tests.
-
 - **Verification**: Every AI-assisted change is read, compiled, tested, and formatted before commit (`nix develop --command cargo check / cargo test / cargo fmt`). Behavioural correctness is verified against the relevant RFC or upstream spec, not assumed from the model output. Tests are never adjusted to fit AI-generated code; the code is adjusted to fit correct behaviour.
-
 - **Limitations**: AI models occasionally produce code that compiles and passes tests but is subtly wrong: off-by-one errors, missed edge cases, plausible but nonexistent APIs, stale RFC references. The verification workflow catches most of this; it does not catch all of it. Bug reports are welcome and taken seriously.
-
 - **Last reviewed**: 14/06/2026
 
 ## Social

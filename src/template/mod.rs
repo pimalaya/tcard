@@ -330,6 +330,20 @@ mod tests {
     }
 
     #[test]
+    fn date_fields_are_not_dropped() {
+        // calcard parses BDAY/ANNIVERSARY to a typed date with no text
+        // accessor; they must still project (and survive apply), not vanish.
+        let src = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:A\r\n\
+            BDAY:19960415\r\nANNIVERSARY:20090808\r\nEND:VCARD\r\n";
+        let card = vcard::parse(src).unwrap();
+        let toml = super::project(&[card], VCardVersion::V4_0);
+
+        assert!(toml.contains("birthday = \"19960415\""));
+        assert!(toml.contains("anniversary = \"20090808\""));
+        assert_eq!(super::apply(src, &toml).unwrap(), src);
+    }
+
+    #[test]
     fn adr_pobox_and_ext_deprecated_by_version() {
         let v4 = super::project(&[], VCardVersion::V4_0);
         let v3 = super::project(&[], VCardVersion::V3_0);

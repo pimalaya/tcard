@@ -16,7 +16,7 @@ use crate::template::{
     line::Line,
     util::{
         entry_components, entry_text, entry_texts, escape, join_components, push_type,
-        read_components, tables, toml_array, toml_str, type_strings,
+        read_components, scalar_text, tables, toml_array, toml_str, type_strings,
     },
 };
 
@@ -194,14 +194,14 @@ pub const FIELDS: &[Field] = &[
         key: "birthday",
         name: "BDAY",
         req: Req::No,
-        hint: Some("1990-05-23"),
+        hint: Some("19960415, or --0415 without a year"),
         kind: Kind::Scalar,
     },
     Field {
         key: "anniversary",
         name: "ANNIVERSARY",
         req: Req::No,
-        hint: Some("2014-09-21"),
+        hint: Some("20090808"),
         kind: Kind::Scalar,
     },
     Field {
@@ -316,10 +316,10 @@ impl Field {
             Kind::Scalar => {
                 let value = entries
                     .first()
-                    .and_then(|entry| entry_text(entry))
+                    .map(|entry| scalar_text(entry))
                     .unwrap_or_default();
                 vec![Line {
-                    lhs: format!("{} = {}", self.key, toml_str(value)),
+                    lhs: format!("{} = {}", self.key, toml_str(&value)),
                     hint,
                 }]
             }

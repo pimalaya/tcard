@@ -11,8 +11,8 @@ title = ""
 role = ""
 categories = []
 language = []		# en, fr
-birthday = ""		# 1990-05-23
-anniversary = ""	# 2014-09-21
+birthday = ""		# 19960415, or --0415 without a year
+anniversary = ""	# 20090808
 geo = ""		# geo:37.78,-122.40
 timezone = ""		# America/New_York
 note = "RFC6350 requires N to have cardinality <=1 but allows alternative representations to be included if they are linked by the ALTID parameter."
