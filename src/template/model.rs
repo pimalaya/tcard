@@ -9,10 +9,11 @@ use alloc::{
     vec::Vec,
 };
 
-use calcard::vcard::{VCardEntry, VCardVersion};
+use calcard::vcard::{VCardEntry, VCardValue, VCardVersion};
 use toml_edit::TableLike;
 
 use crate::template::{
+    datetime::{toml_date, toml_date_line, vcard_date},
     line::Line,
     util::{
         entry_components, entry_text, entry_texts, escape, join_components, push_type,
@@ -45,6 +46,10 @@ pub enum Kind {
     /// Single text value (`FN`, `NOTE`, ...).
     Scalar,
 
+    /// Date or date-time (`BDAY`, `ANNIVERSARY`): a native TOML value when
+    /// complete, a quoted RFC 6350 string for a partial (yearless) one.
+    Date,
+
     /// Repeated or multi-valued text, joined on `sep` in the vCard
     /// (`NICKNAME`, `CATEGORIES`, `ORG`).
     List { sep: char },
@@ -67,7 +72,7 @@ pub enum Kind {
 impl Kind {
     /// A bare key (vs a `[table]` / `[[array]]` section).
     pub fn is_simple(&self) -> bool {
-        matches!(self, Kind::Scalar | Kind::List { .. })
+        matches!(self, Kind::Scalar | Kind::Date | Kind::List { .. })
     }
 }
 
@@ -194,15 +199,15 @@ pub const FIELDS: &[Field] = &[
         key: "birthday",
         name: "BDAY",
         req: Req::No,
-        hint: Some("19960415, or --0415 without a year"),
-        kind: Kind::Scalar,
+        hint: Some("1996-04-15, or \"--0415\" without a year"),
+        kind: Kind::Date,
     },
     Field {
         key: "anniversary",
         name: "ANNIVERSARY",
         req: Req::No,
-        hint: Some("20090808"),
-        kind: Kind::Scalar,
+        hint: Some("2009-08-08"),
+        kind: Kind::Date,
     },
     Field {
         key: "geo",
@@ -324,6 +329,24 @@ impl Field {
                 }]
             }
 
+            Kind::Date => {
+                // A complete date projects as a native TOML value, a partial
+                // one (yearless, year only) as a quoted RFC 6350 string, and
+                // a free-text date as the text it carries.
+                let rhs = match entries.first().and_then(|entry| entry.values.first()) {
+                    Some(VCardValue::PartialDateTime(dt)) => match toml_date(dt) {
+                        Some(native) => native.to_string(),
+                        None => toml_str(&vcard_date(dt)),
+                    },
+                    Some(other) => toml_str(other.as_text().unwrap_or_default()),
+                    None => toml_str(""),
+                };
+                vec![Line {
+                    lhs: format!("{} = {}", self.key, rhs),
+                    hint,
+                }]
+            }
+
             Kind::List { .. } => {
                 let items: Vec<String> = entries
                     .iter()
@@ -423,6 +446,14 @@ impl Field {
         match &self.kind {
             Kind::Scalar => {
                 if let Some(value) = item.as_str().filter(|value| !value.is_empty()) {
+                    lines.push(format!("{}:{}", self.name, escape(value)));
+                }
+            }
+
+            Kind::Date => {
+                if let Some(dtm) = item.as_datetime() {
+                    lines.push(toml_date_line(self.name, dtm));
+                } else if let Some(value) = item.as_str().filter(|value| !value.is_empty()) {
                     lines.push(format!("{}:{}", self.name, escape(value)));
                 }
             }

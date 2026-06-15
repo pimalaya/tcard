@@ -3,16 +3,17 @@
 
 use alloc::{
     borrow::ToOwned,
-    format,
     string::{String, ToString},
     vec::Vec,
 };
 
 use calcard::{
-    common::{IanaString, PartialDateTime},
+    common::IanaString,
     vcard::{VCardEntry, VCardParameterName, VCardParameterValue, VCardValue},
 };
 use toml_edit::{Array, Item, TableLike, Value};
+
+use crate::template::datetime::vcard_date;
 
 /// Render a string as a quoted, escaped TOML scalar.
 pub fn toml_str(value: &str) -> String {
@@ -82,7 +83,7 @@ pub fn scalar_text(entry: &VCardEntry) -> String {
     }
 
     if let VCardValue::PartialDateTime(date) = value {
-        return render_date(date);
+        return vcard_date(date);
     }
 
     value
@@ -90,35 +91,6 @@ pub fn scalar_text(entry: &VCardEntry) -> String {
         .into_text()
         .map(|text| text.into_owned())
         .unwrap_or_default()
-}
-
-/// Render a vCard date or date-time back to its RFC 6350 string, in basic ISO
-/// 8601 form (`19960415`, or `--0415` for a yearless birthday, with a
-/// `T..` time when present).
-fn render_date(date: &PartialDateTime) -> String {
-    let mut out = String::new();
-
-    match (date.year, date.month, date.day) {
-        (Some(y), Some(m), Some(d)) => out.push_str(&format!("{y:04}{m:02}{d:02}")),
-        (Some(y), Some(m), None) => out.push_str(&format!("{y:04}-{m:02}")),
-        (Some(y), None, None) => out.push_str(&format!("{y:04}")),
-        (None, Some(m), Some(d)) => out.push_str(&format!("--{m:02}{d:02}")),
-        (None, Some(m), None) => out.push_str(&format!("--{m:02}")),
-        (None, None, Some(d)) => out.push_str(&format!("---{d:02}")),
-        _ => {}
-    }
-
-    if let Some(hour) = date.hour {
-        out.push_str(&format!("T{hour:02}"));
-        if let Some(minute) = date.minute {
-            out.push_str(&format!("{minute:02}"));
-            if let Some(second) = date.second {
-                out.push_str(&format!("{second:02}"));
-            }
-        }
-    }
-
-    out
 }
 
 /// All texts of an entry, flattening structured components.

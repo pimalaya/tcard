@@ -23,6 +23,7 @@
 //! to that table, so the scalar/list keys lead and the sectioned properties
 //! (`N`, `EMAIL`, `ADR`, ...) follow.
 
+mod datetime;
 mod line;
 mod model;
 mod util;
@@ -338,8 +339,8 @@ mod tests {
         let card = vcard::parse(src).unwrap();
         let toml = super::project(&[card], VCardVersion::V4_0);
 
-        assert!(toml.contains("birthday = \"19960415\""));
-        assert!(toml.contains("anniversary = \"20090808\""));
+        assert!(toml.contains("birthday = 1996-04-15"));
+        assert!(toml.contains("anniversary = 2009-08-08"));
         assert_eq!(super::apply(src, &toml).unwrap(), src);
     }
 

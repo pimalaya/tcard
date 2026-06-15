@@ -11,7 +11,7 @@ full-name = "Jane Doe"
 nickname = ["Janie"]
 organization = ["Acme", "Engineering"]
 title = "Engineer"
-birthday = "19960415"
+birthday = 1996-04-15
 
 [[email]]
 type = "work"
