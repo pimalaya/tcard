@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added the `merge` verb and the `merge` module behind it, a three-way merge projected as TOML.
+
+  `merge BASE LOCAL REMOTE --output PATH` reconciles two divergent cards against the base they came from (through [vcard-rs](https://crates.io/crates/vcard-rs), behind the opt-in `merge` feature the `cli` feature pulls in), projects the outcome as TOML, opens `$EDITOR` on it, and writes the output path only once the edited document parses. A field both sides changed is written once per surviving side, each line naming its side, with the ancestor commented above them: TOML forbids duplicate keys, so an undecided document cannot be applied, and `merge::apply` reports the duplicate-key parse error as the field left undecided rather than as a syntax error. A collision inside a structured value (`ADR`, `N`) decomposes into per-key duplicates inside the single table that projects the instance, never a repeated array-of-tables block. What the merge already decided (a removal against an update, where the update wins), a collision on a part the projection does not show, and an instance paired by position rather than by `PID` are said in a comment at the top of the document instead.
+
 - Offered to re-edit on a broken `edit` buffer instead of discarding it.
 
   When the edited TOML fails to parse, `edit` now shows the parse error and prompts to re-open `$EDITOR` seeded with the user's own buffer, looping until it parses or the user declines. JSON output stays non-interactive: the error just propagates.
@@ -23,8 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   It parses a vCard stream into a tree that keeps every content line's original bytes, unfolds folded lines for matching, and re-renders only the properties a caller mutates via `Component::set_all`. `components`/`components_mut` and `properties`/`properties_mut` iterators (`.nth(i)` plus `Property::set`) address one occurrence, and `Card::set_component_count` adds or drops whole cards. The round-trip invariant is `Card::parse(s).to_string() == s`. It is `#![no_std]` (alloc only), calcard-independent, and powers `apply`'s minimal diffs.
 
-- Added the `tcard` CLI with two verbs.
+- Added the `tcard` CLI with three verbs.
 
-  `template [SOURCE]` prints the TOML scaffold (blank or prefilled). `edit [SOURCE]` runs the full "project → `$EDITOR` → apply" round-trip and emits the resulting vCard, writing a file source back in place. `SOURCE` resolves deterministically: `-` reads stdin, an existing file is read, otherwise the value is treated as literal vCard contents, and omitting it starts from a blank template. A `-V`/`--version` flag on each verb selects the target vCard version (the root `--version` stays the app version), and new (sourceless) cards are seeded with a fresh `urn:uuid` v4 `UID`.
+  `template [SOURCE]` prints the TOML scaffold (blank or prefilled). `edit [SOURCE]` runs the full "project → `$EDITOR` → apply" round-trip and emits the resulting vCard, writing a file source back in place. `SOURCE` resolves deterministically: `-` reads stdin, an existing file is read, otherwise the value is treated as literal vCard contents, and omitting it starts from a blank template. A `-V`/`--version` flag on each verb selects the target vCard version (the root `--version` stays the app version), and new (sourceless) cards are seeded with a fresh `urn:uuid` v4 `UID`. `merge BASE LOCAL REMOTE --output PATH` takes paths rather than a `SOURCE`, since a merge needs three cards at once.
 
 - Added a golden fixture test database under `tests/data/`: real-world and crafted vCards (`<name>.vcf`) each with their expected TOML projection (`<name>.<mode>.toml`), asserting projection equality and, unless flagged `.lossy`, byte-exact round-trip. Real cards are imported from the [ez-vcard](https://github.com/mangstadt/ez-vcard) app-export corpus (Gmail, Evolution, MS Outlook 2.1) and the [calcard](https://crates.io/crates/calcard) parser corpus, spanning vCard 2.1/3.0/4.0 and single/multi-card files.

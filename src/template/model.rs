@@ -24,7 +24,7 @@ use crate::template::{
 /// A named component of a structured value: TOML key, optional hint, and
 /// whether it is deprecated (hidden in vCard 4.0, flagged `# deprecated` in
 /// older versions).
-type Component = (&'static str, Option<&'static str>, bool);
+pub type Component = (&'static str, Option<&'static str>, bool);
 
 /// Whether a property is required, possibly only in legacy versions.
 #[derive(Clone, Copy)]

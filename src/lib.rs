@@ -10,5 +10,7 @@ extern crate std;
 pub mod cli;
 pub mod edit;
 pub mod error;
+#[cfg(feature = "merge")]
+pub mod merge;
 pub mod template;
 pub mod vcard;

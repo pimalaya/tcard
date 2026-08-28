@@ -25,8 +25,8 @@
 
 mod datetime;
 mod line;
-mod model;
-mod util;
+pub(crate) mod model;
+pub(crate) mod util;
 
 use alloc::{
     string::{String, ToString},

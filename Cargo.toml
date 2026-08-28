@@ -18,7 +18,8 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
 default = []
-cli = ["dep:anyhow", "dep:clap", "dep:edit", "dep:pimalaya-cli", "dep:uuid"]
+cli = ["merge", "dep:anyhow", "dep:clap", "dep:edit", "dep:pimalaya-cli", "dep:uuid"]
+merge = ["dep:vcard-rs"]
 
 [profile.release]
 lto = "fat"
@@ -36,7 +37,7 @@ name = "tcard"
 path = "src/lib.rs"
 
 [build-dependencies]
-pimalaya-cli = { version = "0.0.1", default-features = false, features = ["build"], optional = true }
+pimalaya-cli = { version = "0.2", default-features = false, features = ["build"], optional = true }
 
 [dependencies]
 anyhow = { version = "1", optional = true }
@@ -44,7 +45,8 @@ calcard = "0.3"
 clap = { version = "4.4", features = ["derive", "env", "wrap_help"], optional = true }
 edit = { version = "0.1", optional = true }
 log = { version = "0.4", default-features = false }
-pimalaya-cli = { version = "0.0.1", default-features = false, features = ["prompt", "terminal"], optional = true }
+pimalaya-cli = { version = "0.2", default-features = false, features = ["prompt", "terminal"], optional = true }
 thiserror = { version = "2", default-features = false }
 toml_edit = "0.25"
 uuid = { version = "1", features = ["v4"], optional = true }
+vcard-rs = { version = "0.2", default-features = false, features = ["parser"], optional = true }

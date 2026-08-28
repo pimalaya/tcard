@@ -18,6 +18,10 @@ pub enum TcardError {
     /// The edited TOML buffer is not valid TOML.
     #[error("Cannot parse TOML buffer")]
     ParseToml(#[source] toml_edit::TomlError),
+    /// The edited document still holds a collision, written as the same key
+    /// twice, so it cannot be applied until one of the lines is gone.
+    #[error("Field {0} left undecided, keep one of its lines")]
+    Undecided(String),
 }
 
 /// The global `Result` alias of the library.

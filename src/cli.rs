@@ -4,6 +4,8 @@
 //!   vCard. Always emits TOML.
 //! - `edit [SOURCE]`: project, open `$EDITOR`, apply the edits back onto the
 //!   source, and emit the resulting vCard. Always emits a vCard.
+//! - `merge BASE LOCAL REMOTE`: merge two divergent cards against their base,
+//!   edit what the merge could not decide, and write the vCard out.
 //!
 //! `SOURCE` resolves deterministically: `-` reads stdin, an existing file is
 //! read, otherwise the value is treated as literal vCard contents, and omitting
@@ -33,7 +35,10 @@ use pimalaya_cli::{
 };
 use uuid::Uuid;
 
-use crate::{error::TcardError, template, vcard};
+use crate::{
+    error::{Result as TcardResult, TcardError},
+    merge, template, vcard,
+};
 
 /// Root CLI parser.
 #[derive(Parser, Debug)]
@@ -57,9 +62,12 @@ pub enum Command {
     #[command(visible_alias = "tpl")]
     Template(TemplateCommand),
     Edit(EditCommand),
+    Merge(MergeCommand),
 
-    Completions(CompletionCommand),
-    Manuals(ManualCommand),
+    #[command(alias = "completions")]
+    Completion(CompletionCommand),
+    #[command(alias = "manuals")]
+    Manual(ManualCommand),
 }
 
 impl Command {
@@ -67,8 +75,9 @@ impl Command {
         match self {
             Self::Template(cmd) => cmd.execute(printer),
             Self::Edit(cmd) => cmd.execute(printer),
-            Self::Completions(cmd) => cmd.execute(printer, Cli::command()),
-            Self::Manuals(cmd) => cmd.execute(printer, Cli::command()),
+            Self::Merge(cmd) => cmd.execute(printer),
+            Self::Completion(cmd) => cmd.execute(printer, Cli::command()),
+            Self::Manual(cmd) => cmd.execute(printer, Cli::command()),
         }
     }
 }
@@ -113,37 +122,97 @@ impl EditCommand {
         let (cards, version, src) = load(&self.source, &self.version)?;
         let scaffold = template::project(&cards, version);
 
-        let mut builder = edit::Builder::new();
-        builder.suffix(".toml");
-
-        debug!("opening editor on the projected scaffold");
-        let mut edited =
-            edit::edit_with_builder(&scaffold, &builder).context("Cannot spawn editor")?;
-
-        // A broken edit is recoverable: re-open the editor seeded with the
-        // user's own buffer so the edits are never lost. JSON output is
-        // non-interactive, so the error just propagates there.
-        let vcard = loop {
-            match template::apply(&src, &edited) {
-                Ok(vcard) => break vcard,
-                Err(TcardError::ParseToml(err)) if !printer.is_json() => {
-                    let message = format!("Cannot parse TOML buffer:\n\n{err}\nRe-edit to fix it?");
-                    if !prompt::bool(message, true)? {
-                        return Err(TcardError::ParseToml(err).into());
-                    }
-                    edited = edit::edit_with_builder(&edited, &builder)
-                        .context("Cannot spawn editor")?;
-                }
-                Err(err) => return Err(err.into()),
-            }
-        };
+        let vcard = edit_toml(printer, &scaffold, |edited| template::apply(&src, edited))?;
 
         let target = self.output.or_else(|| self.source.file_path());
         write_out(target.as_deref(), vcard.as_bytes())
     }
 }
 
-/// Positional vCard source shared by both verbs.
+/// Merge two divergent vCards against their common base, then decide the rest
+/// in `$EDITOR`.
+///
+/// The merge settles every field only one side touched. What both sides
+/// changed is written into the document twice, once per side, which TOML
+/// refuses to parse: keep one of the two lines, or replace them with a value
+/// of your own. The output is written only once the document parses.
+#[derive(Debug, Parser)]
+pub struct MergeCommand {
+    /// The common ancestor both sides diverged from.
+    #[arg(value_name = "BASE", value_parser = path_parser)]
+    pub base: PathBuf,
+    /// The local side of the divergence.
+    #[arg(value_name = "LOCAL", value_parser = path_parser)]
+    pub local: PathBuf,
+    /// The remote side of the divergence.
+    #[arg(value_name = "REMOTE", value_parser = path_parser)]
+    pub remote: PathBuf,
+    /// Write the merged vCard here, once the document is decided.
+    #[arg(short, long, value_name = "PATH", value_parser = path_parser)]
+    pub output: PathBuf,
+}
+
+impl MergeCommand {
+    pub fn execute(self, printer: &mut impl Printer) -> Result<()> {
+        let base = read_card(&self.base)?;
+        let local = read_card(&self.local)?;
+        let remote = read_card(&self.remote)?;
+
+        let merged = merge::project(&base, &local, &remote)?;
+
+        let vcard = edit_toml(printer, &merged.toml, |edited| {
+            merge::apply(&merged.vcard, edited)
+        })?;
+
+        write_out(Some(&self.output), vcard.as_bytes())
+    }
+}
+
+/// Open the editor on a TOML document, then fold the result back with `apply`.
+///
+/// A document that does not fold back is recoverable: the editor re-opens
+/// seeded with the user's own buffer, so an edit is never lost, whether the
+/// document is broken TOML or still holds a collision to decide. JSON output
+/// is non-interactive, so the error propagates there instead.
+fn edit_toml(
+    printer: &mut impl Printer,
+    document: &str,
+    apply: impl Fn(&str) -> TcardResult<String>,
+) -> Result<String> {
+    let mut builder = edit::Builder::new();
+    builder.suffix(".toml");
+
+    debug!("opening editor on the projected document");
+    let mut edited = edit::edit_with_builder(document, &builder).context("Cannot spawn editor")?;
+
+    loop {
+        let err = match apply(&edited) {
+            Ok(vcard) => return Ok(vcard),
+            Err(err) => err,
+        };
+
+        let recoverable = matches!(err, TcardError::ParseToml(_) | TcardError::Undecided(_));
+
+        if !recoverable || printer.is_json() || !prompt::bool(reprompt(&err), true)? {
+            return Err(err.into());
+        }
+
+        edited = edit::edit_with_builder(&edited, &builder).context("Cannot spawn editor")?;
+    }
+}
+
+/// The question asked after a failed fold: what went wrong, with the parser's
+/// own detail when there is one, and the offer to re-open the editor.
+fn reprompt(err: &TcardError) -> String {
+    match err {
+        TcardError::ParseToml(err) => {
+            format!("Cannot parse TOML buffer:\n\n{err}\nRe-edit to fix it?")
+        }
+        err => format!("{err}\n\nRe-edit to fix it?"),
+    }
+}
+
+/// Positional vCard source shared by the template and edit verbs.
 #[derive(Debug, Parser)]
 pub struct SourceArg {
     /// A path to a vCard file, raw vCard contents, or `-` for stdin.  Omit to
@@ -255,6 +324,12 @@ fn load(source: &SourceArg, version: &VersionArg) -> Result<(Vec<VCard>, VCardVe
             Ok((cards, requested, text))
         }
     }
+}
+
+/// Read a card from a path, the form the three inputs of a merge take.
+fn read_card(path: &Path) -> Result<String> {
+    debug!("reading vCard from {path:?}");
+    fs::read_to_string(path).with_context(|| format!("Cannot read vCard {path:?}"))
 }
 
 /// Write bytes to a file, or to stdout when no path is given.
