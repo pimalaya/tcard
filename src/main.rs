@@ -1,3 +1,12 @@
+//! # tCard
+//!
+//! Binary entry point of the tCard CLI. It parses the command-line interface
+//! declared in [`tcard::cli`], wires the logger and the printer from the shared
+//! pimalaya-cli toolkit, then hands control to the parsed command.
+//!
+//! Everything below this file lives in the library, whose own header carries
+//! the crate architecture: see [`tcard`].
+
 use anyhow::Result;
 use clap::Parser;
 use pimalaya_cli::{error::ErrorReport, log::Logger, printer::StdoutPrinter};

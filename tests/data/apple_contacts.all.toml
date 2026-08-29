@@ -29,15 +29,15 @@ sex = ""	# F, M, O, N, U
 identity = ""
 
 [[email]]
-type = "INTERNET,home,pref"	# home, work
+type = "INTERNET,HOME,pref"	# home, work
 value = "john@icloud.com"	# email address
 
 [[phone]]
-type = "cell,voice,pref"	# home, work, cell, fax, voice, video, pager, text, textphone
+type = "CELL,VOICE,pref"	# home, work, cell, fax, voice, video, pager, text, textphone
 value = "+1-555-0100"		# +1-555-0100
 
 [[address]]
-type = "home,pref"	# home, work
+type = "HOME,pref"	# home, work
 pobox = ""		# deprecated
 ext = ""		# deprecated
 street = "1 Infinite Loop"

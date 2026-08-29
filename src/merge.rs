@@ -1,3 +1,5 @@
+//! # Merge
+//!
 //! Three-way merge of a vCard, projected as a TOML document to decide.
 //!
 //! [`project`] merges a local and a remote card against the base they both
@@ -16,6 +18,11 @@
 //! said in a comment at the top of the document instead. So is an instance the
 //! merge paired by position rather than by `PID`, since the pairing behind the
 //! choice may be the wrong one and only the reader can see that.
+//!
+//! A list both sides edited is said there too. Its items merge as a set, which
+//! is right for a value RFC 6350 gives no order to, so there is nothing to
+//! choose; but the merged value is one neither side wrote, and a reader who is
+//! not told cannot review it.
 
 use alloc::{
     borrow::{Cow, ToOwned},
@@ -25,7 +32,6 @@ use alloc::{
     vec::Vec,
 };
 
-use calcard::vcard::{VCard, VCardVersion};
 use log::debug;
 use vcard::{
     param::VcardParam,
@@ -41,12 +47,15 @@ use crate::{
     error::{Result, TcardError},
     template::{
         self,
-        datetime::toml_datetime,
+        datetime::date_rhs,
         model::{Component, FIELDS, Field, Kind},
         util::{toml_array, toml_str},
     },
-    vcard::parse_all,
+    vcard::Cards,
 };
+
+/// The column a header comment wraps at, its `# ` prefix included.
+const WRAP: usize = 66;
 
 /// A merged card ready to be decided: the vCard an edited document folds back
 /// onto, and that document.
@@ -65,24 +74,23 @@ pub struct Merged {
 /// Only the first card of each input is merged: a merge projects one card, and
 /// the callers of a merge hand over one card per body.
 pub fn project(base: &str, local: &str, remote: &str) -> Result<Merged> {
-    let base = parse(base)?;
-    let local = parse(local)?;
-    let remote = parse(remote)?;
+    let base = read(base, "base")?;
+    let local = read(local, "local")?;
+    let remote = read(remote, "remote")?;
 
     let report = merge(&base, &local, &remote);
     debug!("merged with {} collision(s)", report.conflicts.len());
 
-    let vcard = report.merged.to_string();
-    let cards = parse_all(&vcard)?;
-    let version = cards
-        .first()
-        .and_then(VCard::version)
-        .unwrap_or(VCardVersion::V4_0);
-    let escaper = VcardEscaper::for_version(report.merged.version());
+    let version = report.merged.version();
+    let escaper = VcardEscaper::for_version(version);
+    let cards = Cards(vec![report.merged.clone()]);
 
     let toml = decorate(template::project(&cards, version), &base, &report, escaper);
 
-    Ok(Merged { vcard, toml })
+    Ok(Merged {
+        vcard: report.merged.to_string(),
+        toml,
+    })
 }
 
 /// Fold an edited merge document back onto the merged card.
@@ -94,9 +102,12 @@ pub fn apply(vcard: &str, edited: &str) -> Result<String> {
     template::apply(vcard, edited).map_err(|err| undecided(err, edited))
 }
 
-/// Parse one card into the byte-faithful tree the merge operates on.
-fn parse(input: &str) -> Result<VcardCst<'_>> {
-    VcardCst::parse(input).map_err(|err| TcardError::ParseVcard(err.to_string()))
+/// Read one side of a merge as a syntax tree, named by the side it is.
+fn read<'a>(text: &'a str, side: &'static str) -> Result<VcardCst<'a>> {
+    VcardCst::parse(text).map_err(|err| TcardError::ReadCard {
+        side,
+        message: err.to_string(),
+    })
 }
 
 /// Rewrite a duplicate-key parse error into the key it leaves undecided. The
@@ -161,6 +172,8 @@ fn decorate(
             push_note(&mut notes, note);
         }
     }
+
+    note_unions(&mut notes, report);
 
     // The contested lines are rewritten from the bottom up, so an earlier
     // index stays the one that was located.
@@ -427,17 +440,6 @@ fn value_rhs(field: &Field, value: &VcardValue<'_>, escaper: VcardEscaper) -> St
     }
 }
 
-/// A date as the projection writes one: native where the value is complete,
-/// the quoted RFC 6350 string where it is partial and TOML has no form for
-/// it. Contesting a key in a spelling the document never uses elsewhere
-/// would cost the reader the one moment the projection exists for.
-fn date_rhs(value: &str) -> String {
-    match toml_datetime(value) {
-        Some(native) => native.to_string(),
-        None => toml_str(value),
-    }
-}
-
 /// The values of one component or one list parameter as a single quoted
 /// string, the form the projection writes them in.
 fn joined_rhs(values: &[Cow<'_, str>]) -> String {
@@ -574,6 +576,55 @@ fn note(conflict: &VcardMergeConflict<'_>) -> String {
     }
 }
 
+/// Say in the header every list both sides edited, since the merge keeps the
+/// items of both and reports no conflict for them.
+///
+/// Merging items as a set is right for a value RFC 6350 gives no order to: two
+/// sides each adding a nickname should keep both, and asking a reader to choose
+/// between them would be wrong. Saying nothing is what is wrong, since the
+/// merged value is then one neither side wrote and nobody was told.
+fn note_unions(notes: &mut Vec<String>, report: &VcardMergeReport<'_>) {
+    for action in &report.left {
+        let Some((at, param)) = edited_items(action) else {
+            continue;
+        };
+
+        let both = report
+            .right
+            .iter()
+            .filter_map(edited_items)
+            .any(|(other, held)| other == at && held == param);
+
+        if both {
+            push_note(notes, union_note(&label(action), param));
+        }
+    }
+}
+
+/// The list an action edited: the instance it belongs to, and the parameter's
+/// name when it is a list parameter rather than the value itself.
+fn edited_items<'p, 'a>(
+    action: &'p VcardMergeAction<'a>,
+) -> Option<(&'p VcardPropPath<'a>, Option<&'p str>)> {
+    match action {
+        VcardMergeAction::ValueItemAdded { at, .. }
+        | VcardMergeAction::ValueItemRemoved { at, .. } => Some((at, None)),
+        VcardMergeAction::ParamItemAdded { at, param, .. }
+        | VcardMergeAction::ParamItemRemoved { at, param, .. } => Some((at, Some(param))),
+        _ => None,
+    }
+}
+
+/// What the header says about a list both sides edited.
+fn union_note(label: &str, param: Option<&str>) -> String {
+    match param {
+        Some(param) => {
+            format!("{label}: both sides changed its {param}; the values of both were kept")
+        }
+        None => format!("{label}: both sides changed its list; the items of both were kept"),
+    }
+}
+
 /// What the header says when the two sides' instances were paired by position:
 /// the base card holds several properties of that name and this one carries no
 /// `PID`, so the pairing rests on order alone and may well have brought
@@ -627,7 +678,34 @@ fn push_note(notes: &mut Vec<String>, note: String) {
 /// The notes as a block continuing the document's header comment.
 fn header(notes: &[String]) -> Vec<String> {
     let mut lines = vec!["#".to_owned(), "# Merge notes:".to_owned(), "#".to_owned()];
-    lines.extend(notes.iter().map(|note| format!("# - {note}")));
+    lines.extend(notes.iter().flat_map(|note| comment(&format!("- {note}"))));
+    lines
+}
+
+/// One comment paragraph wrapped at [`WRAP`], a continuation line of a bullet
+/// indented under its text.
+fn comment(text: &str) -> Vec<String> {
+    let indent = if text.starts_with("- ") { "  " } else { "" };
+    let mut lines = Vec::new();
+    let mut line = String::new();
+
+    for word in text.split_whitespace() {
+        if !line.is_empty() && line.len() + word.len() + 1 > WRAP {
+            lines.push(format!("# {line}"));
+            line = indent.to_owned();
+        }
+
+        if !line.is_empty() && !line.ends_with(' ') {
+            line.push(' ');
+        }
+
+        line.push_str(word);
+    }
+
+    if !line.trim().is_empty() {
+        lines.push(format!("# {line}"));
+    }
+
     lines
 }
 
@@ -647,6 +725,22 @@ mod tests {
 
     fn card(props: &str) -> String {
         format!("BEGIN:VCARD\r\nVERSION:4.0\r\n{props}END:VCARD\r\n")
+    }
+
+    /// The document's header comment as one unwrapped line, so a note can be
+    /// looked for without minding where it happens to have been folded.
+    fn notes(toml: &str) -> String {
+        let mut header = String::new();
+
+        for line in toml.lines().take_while(|line| line.starts_with('#')) {
+            if !header.is_empty() {
+                header.push(' ');
+            }
+
+            header.push_str(line.trim_start_matches('#').trim());
+        }
+
+        header
     }
 
     #[test]
@@ -745,9 +839,8 @@ mod tests {
         let merged = super::project(&base, &local, &remote).unwrap();
 
         assert!(
-            merged
-                .toml
-                .contains("# - note: removed by local, updated by remote; the update was kept\n")
+            notes(&merged.toml)
+                .contains("- note: removed by local, updated by remote; the update was kept")
         );
         assert!(!merged.toml.contains("# conflict"));
         assert_eq!(
@@ -766,6 +859,20 @@ mod tests {
     }
 
     #[test]
+    fn an_unreadable_side_is_named() {
+        let base = card("FN:Jane\r\n");
+
+        let Err(err) = super::project(&base, &base, "not a vCard at all") else {
+            panic!("the unreadable side was read");
+        };
+
+        assert!(
+            matches!(&err, TcardError::ReadCard { side, .. } if *side == "remote"),
+            "{err:?}",
+        );
+    }
+
+    #[test]
     fn positional_pairing_is_noted() {
         let base = card("FN:Jane\r\nTEL:+1\r\nTEL:+2\r\n");
         let local = card("FN:Jane\r\nTEL:+1\r\nTEL:+3\r\n");
@@ -774,9 +881,8 @@ mod tests {
         let merged = super::project(&base, &local, &remote).unwrap();
 
         assert!(
-            merged
-                .toml
-                .contains("# - phone: paired by position, not by PID; the pairing may be wrong\n")
+            notes(&merged.toml)
+                .contains("- phone: paired by position, not by PID; the pairing may be wrong")
         );
         assert!(merged.toml.contains("value = \"+3\" # local\n"));
         assert!(merged.toml.contains("value = \"+4\" # remote\n"));

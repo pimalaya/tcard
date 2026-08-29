@@ -8,6 +8,16 @@ status: current
 
 Projecting a card as an ergonomic TOML form and folding the edited form back onto it. The document is an editing affordance rather than an interchange format, so the rules here are about what survives the round trip: a card comes back as it was but for what the reader actually changed. What the merge document says and what it refuses belongs to merge.
 
+### Requirement: One reader per body
+A body SHALL be read once. The reader that parses a card for the merge SHALL be the reader that parses it for the projection, so the two agree by construction rather than by serialising between them.
+
+Two readers do not merely cost a parse. They disagree, and the disagreement is invisible: a value the first reads faithfully and the second normalises reaches the document already changed, and no test comparing the document against the second reader's output can see it.
+
+#### Scenario: A value no reader normalises
+- GIVEN a card whose list item carries an escape, and whose gender identity is a lowercase letter
+- WHEN it is projected and applied unchanged
+- THEN both come back byte-exact
+
 ### Requirement: A property is addressed by its bare name
 The editor SHALL match a property by the name behind its group (`item1.EMAIL` is an `EMAIL`), and a line written back SHALL keep the group of the line it replaces.
 
@@ -22,6 +32,8 @@ A group is a label on a line, not part of what the property is: RFC 6350 section
 Folding an untouched projection back SHALL leave the card as it was, and folding the result again SHALL change nothing further, for every card in the golden fixture set.
 
 A card that only settles after several passes is a card that moves under the reader, and one that never settles loses or gains something on every pass. The fixtures are real exports, so they are where a normalisation nobody intended shows up first.
+
+The values the generators exercise include the ones a second reader used to alter on the way in, escapes inside comma-separated list items and single-letter gender identities among them, which the corpus laws once ran behind a filter.
 
 #### Scenario: A real export does not grow
 - GIVEN a golden fixture carrying grouped properties
@@ -57,3 +69,13 @@ RFC 6350 keeps "one property holding several values" (`NICKNAME:a,b`) apart from
 - GIVEN a card holding `LANG;PREF=1:fr` and `LANG;PREF=2:en`
 - WHEN an untouched projection is folded back
 - THEN the card still holds two `LANG` lines with their preferences
+
+### Requirement: The projection is a sibling module, not an aggregator
+The projection SHALL live in src/template.rs beside its src/template/ folder, rather than in src/template/mod.rs, because it carries the engine itself and not only the declarations of the modules under it.
+
+The mod.rs choice is content-based. A folder whose mod.rs holds nothing but module declarations and re-exports keeps it; a module carrying code of its own is a sibling file next to the folder, so a reader can tell the two apart by the file name alone.
+
+#### Scenario: Where the projection lives
+- GIVEN the projection engine and the leaf modules it declares
+- WHEN the source tree is read
+- THEN the engine is src/template.rs and the leaf modules are files under src/template/

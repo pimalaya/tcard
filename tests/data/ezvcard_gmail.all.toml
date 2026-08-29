@@ -31,18 +31,18 @@ sex = ""	# F, M, O, N, U
 identity = ""
 
 [[email]]
-type = "INTERNET,home"		# home, work
+type = "INTERNET,HOME"		# home, work
 value = "john.doe@ibm.com"	# email address
 
 [[phone]]
-type = "cell"		# home, work, cell, fax, voice, video, pager, text, textphone
+type = "CELL"		# home, work, cell, fax, voice, video, pager, text, textphone
 value = "905-555-1234"	# +1-555-0100
 [[phone]]
-type = "home"		# home, work, cell, fax, voice, video, pager, text, textphone
+type = "HOME"		# home, work, cell, fax, voice, video, pager, text, textphone
 value = "905-666-1234"	# +1-555-0100
 
 [[address]]
-type = "home"												# home, work
+type = "HOME"												# home, work
 pobox = ""												# deprecated
 ext = """
 Crescent moon drive
@@ -59,7 +59,7 @@ country = ""
 value = ""	# file:// or https://
 
 [[url]]
-type = "work"			# home, work
+type = "WORK"			# home, work
 value = "http://www.ibm.com"	# https://example.com
 
 [[messaging]]

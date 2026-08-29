@@ -10,10 +10,10 @@
 //! array-of-tables header would be legal TOML and would quietly make a
 //! second instance instead of an error.
 //!
-//! The laws that do not hold today are kept here as ignored tests, each
-//! naming the finding that reproduces it.
-
-#![cfg(feature = "merge")]
+//! What the merge settled on its own is said in the header instead, and the
+//! laws below cover that too: a removal against an update, a part the
+//! projection does not show, a positional pairing, and a list both sides
+//! edited, whose items are all kept.
 
 use proptest::prelude::*;
 use tcard::{error::TcardError, merge};
@@ -119,6 +119,16 @@ fn keeping(toml: &str, dropped: &str) -> String {
         .filter(|line| !line.ends_with(dropped))
         .map(|line| format!("{line}\n"))
         .collect()
+}
+
+/// The document's header comment as one unwrapped line, so a note can be
+/// looked for without minding where it happens to have been folded.
+fn notes(toml: &str) -> String {
+    toml.lines()
+        .take_while(|line| line.starts_with('#'))
+        .map(|line| line.trim_start_matches('#').trim())
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 proptest! {
@@ -288,11 +298,7 @@ fn a_removal_against_an_update_is_a_comment() {
 
     let merged = merge::project(base, local, remote).unwrap();
 
-    assert!(
-        merged
-            .toml
-            .contains("# - note: removed by local, updated by remote")
-    );
+    assert!(notes(&merged.toml).contains("- note: removed by local, updated by remote"));
     assert!(!merged.toml.contains("# conflict"));
     assert_eq!(
         merged
@@ -320,11 +326,34 @@ fn an_unprojectable_collision_keeps_the_local_value_and_says_so() {
 
     assert!(merged.vcard.contains("X-FOO:two"));
     assert!(!merged.vcard.contains("X-FOO:three"));
-    assert!(merged.toml.contains("the local value was kept"));
+    assert!(notes(&merged.toml).contains("the local value was kept"));
     assert!(!merged.toml.contains("# conflict"));
 
     let out = merge::apply(&merged.vcard, &merged.toml).unwrap();
     assert!(out.contains("X-FOO:two"));
+}
+
+/// A note longer than the column the document is written to is folded over
+/// two comment lines, the second indented under the first line's text, so the
+/// header keeps the width everything below it keeps.
+#[test]
+fn a_long_note_wraps_under_itself() {
+    let base = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:Jane\r\nX-FOO:one\r\nEND:VCARD\r\n";
+    let local = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:Jane\r\nX-FOO:two\r\nEND:VCARD\r\n";
+    let remote = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:Jane\r\nX-FOO:three\r\nEND:VCARD\r\n";
+
+    let merged = merge::project(base, local, remote).unwrap();
+    let header: Vec<&str> = merged
+        .toml
+        .lines()
+        .take_while(|line| line.starts_with('#'))
+        .collect();
+
+    assert!(header.iter().all(|line| line.len() <= 68), "{header:#?}");
+    assert!(
+        header.iter().any(|line| line.starts_with("#   ")),
+        "{header:#?}",
+    );
 }
 
 /// Pairing two instances by position rather than by `PID` is said in the
@@ -338,11 +367,7 @@ fn a_positional_pairing_is_said_in_the_header() {
 
     let merged = merge::project(base, local, remote).unwrap();
 
-    assert!(
-        merged
-            .toml
-            .contains("# - phone: paired by position, not by PID")
-    );
+    assert!(notes(&merged.toml).contains("- phone: paired by position, not by PID"));
     assert!(merged.toml.contains("value = \"+3\" # local\n"));
     assert!(merged.toml.contains("value = \"+4\" # remote\n"));
 }
@@ -379,43 +404,63 @@ fn two_contested_instances_holding_equal_values_are_told_apart() {
     assert!(out.contains("TEL:+3\r\nTEL:+4\r\n"), "{out}");
 }
 
-/// A collision on a multi-valued property is put to the reader like any
-/// other, rather than being settled by keeping every item both sides wrote.
-///
-/// See findings/tcard-list-collision-silently-unioned.md.
+/// Both sides adding to a multi-valued property keeps every item, which is
+/// right for a value RFC 6350 gives no order to, and the header says so, so
+/// the union is something the reader reviews rather than something that
+/// happened to them.
 #[test]
-#[ignore = "fails: see findings/tcard-list-collision-silently-unioned.md"]
-fn a_list_collision_is_put_to_the_reader() {
+fn a_list_union_is_said_in_the_header() {
     let base = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:Jane\r\nNICKNAME:a,b\r\nEND:VCARD\r\n";
     let local = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:Jane\r\nNICKNAME:c,d\r\nEND:VCARD\r\n";
     let remote = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:Jane\r\nNICKNAME:e,f\r\nEND:VCARD\r\n";
 
     let merged = merge::project(base, local, remote).unwrap();
 
-    // Today the merge writes NICKNAME:c,d,e,f, a value neither side wrote,
-    // and the document says nothing at all about it.
     assert!(
-        merged.toml.contains("# conflict") || merged.toml.contains("# - nickname"),
+        merged.vcard.contains("NICKNAME:c,d,e,f"),
+        "{}",
+        merged.vcard
+    );
+    assert!(
+        notes(&merged.toml)
+            .contains("- nickname: both sides changed its list; the items of both were kept"),
         "{}",
         merged.toml,
     );
+
+    // Nothing is left to choose, so the document applies as it stands, with
+    // the whole list on the one key the reader can edit.
+    assert!(
+        merged
+            .toml
+            .contains("nickname = [\"c\", \"d\", \"e\", \"f\"]")
+    );
+    let out = merge::apply(&merged.vcard, &merged.toml).unwrap();
+    assert!(out.contains("NICKNAME:c,d,e,f"), "{out}");
 }
 
-/// A collision on a `TYPE` parameter is put to the reader, rather than
-/// being settled by keeping every type both sides wrote.
-///
-/// See findings/tcard-list-collision-silently-unioned.md.
+/// The items of a `TYPE` are a list like any other, so both sides' types are
+/// kept and the header says so.
 #[test]
-#[ignore = "fails: see findings/tcard-list-collision-silently-unioned.md"]
-fn a_type_collision_is_put_to_the_reader() {
+fn a_type_union_is_said_in_the_header() {
     let base = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:Jane\r\nTEL;TYPE=home:+1\r\nEND:VCARD\r\n";
     let local = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:Jane\r\nTEL;TYPE=work:+1\r\nEND:VCARD\r\n";
     let remote = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:Jane\r\nTEL;TYPE=cell:+1\r\nEND:VCARD\r\n";
 
     let merged = merge::project(base, local, remote).unwrap();
 
-    // Today the phone comes out TYPE=work,cell, both at once, silently.
-    assert!(!merged.vcard.contains("TYPE=work,cell"), "{}", merged.vcard);
+    assert!(merged.vcard.contains("TYPE=work,cell"), "{}", merged.vcard);
+    assert!(
+        notes(&merged.toml)
+            .contains("- phone: both sides changed its TYPE; the values of both were kept"),
+        "{}",
+        merged.toml,
+    );
+    assert!(
+        merged.toml.contains("type = \"work,cell\""),
+        "{}",
+        merged.toml
+    );
 }
 
 /// A collision the projection writes a key for is offered as a choice on

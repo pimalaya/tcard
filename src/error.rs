@@ -1,3 +1,5 @@
+//! # Errors
+//!
 //! The crate-wide error and result types.
 
 use core::result;
@@ -9,12 +11,18 @@ use thiserror::Error;
 /// The global `Error` enum of the library.
 #[derive(Debug, Error)]
 pub enum TcardError {
-    /// calcard parsed the input as iCalendar instead of a vCard.
-    #[error("Contents parsed as iCalendar, not a vCard")]
-    NotAVcard,
-    /// calcard could not parse the input as a vCard.
+    /// The input is not a vCard the reader can parse.
     #[error("Cannot parse vCard: {0}")]
     ParseVcard(String),
+    /// One of a merge's three cards does not read, named by the side it was
+    /// given as.
+    #[error("Cannot read the {side} card: {message}")]
+    ReadCard {
+        /// The side the unreadable card was given as.
+        side: &'static str,
+        /// What vcard-rs made of it.
+        message: String,
+    },
     /// The edited TOML buffer is not valid TOML.
     #[error("Cannot parse TOML buffer")]
     ParseToml(#[source] toml_edit::TomlError),

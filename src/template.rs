@@ -1,32 +1,29 @@
-//! Projection between a calcard [`VCard`] and an ergonomic TOML buffer.
+//! # Projection
 //!
-//! [`project`] turns a vCard file into a fillable TOML form. vCard has a
-//! single component type, so a single card (or a blank file) is flattened at
-//! the document root (bare keys, top-level `[name]` / `[[email]]`, no wrapper);
-//! two or more cards become a list of `[[card]]` blocks. Known fields are
-//! prefilled, the rest listed empty (an empty value means the same as a removed
-//! line). [`apply`] takes the original vCard text
-//! plus the edited buffer (detecting which shape it is: a `[[card]]` key means
-//! blocks, otherwise a flat single card) and produces an updated file, patching
-//! only the lines the user changed (through the format-preserving
-//! [`crate::edit`]) while keeping every unmodeled property (custom `X-*`,
-//! vendor extensions, ...) byte-for-byte.
+//! The two directions between a card and the ergonomic TOML form a reader
+//! edits: projecting one out, and folding an edited one back.
 //!
-//! The modeled vocabulary lives in the `model` submodule; small value and line
-//! helpers in `util` and `line`.
+//! [`project`] turns a vCard file into a fillable form. vCard has a single
+//! record type, so a single card (or a blank file) is flattened at the
+//! document root (bare keys, top-level `[name]` / `[[email]]`, no wrapper);
+//! two or more cards become a list of `[[card]]` blocks.
 //!
-//! `UID` is intentionally not modeled: like `VERSION` it is managed by the app
-//! (seeded for new cards, preserved otherwise) and cannot be set through the
-//! buffer.
+//! [`apply`] takes the original vCard text plus the edited buffer, detecting
+//! which shape it is, and produces an updated file. Only the lines the reader
+//! changed are rewritten (through [`crate::vcard`]), so every unmodelled
+//! property is kept byte for byte.
+//!
+//! `UID` is not modelled: like `VERSION` it is managed by the app, seeded for
+//! new cards and preserved otherwise, and cannot be set through the buffer.
 //!
 //! NOTE: TOML attributes every bare key after a `[table]` / `[[array]]` header
-//! to that table, so the scalar/list keys lead and the sectioned properties
-//! (`N`, `EMAIL`, `ADR`, ...) follow.
+//! to that table, so the scalar and list keys lead and the sectioned
+//! properties follow.
 
 pub(crate) mod datetime;
 mod line;
 pub(crate) mod model;
-mod patch;
+pub(crate) mod patch;
 pub(crate) mod util;
 
 use alloc::{
@@ -34,47 +31,46 @@ use alloc::{
     vec::Vec,
 };
 
-use calcard::vcard::{VCard, VCardEntry, VCardVersion};
 use log::trace;
 use toml_edit::{DocumentMut, TableLike};
+use vcard::{tree::cst::VcardCst, version::VcardVersion};
 
 use crate::{
-    edit::tree::{Card, Component},
     error::{Result, TcardError},
     template::{
         line::{Line, comment_column, emit_lines},
         model::{FIELDS, Field},
         util::tables,
     },
-    vcard,
+    vcard::{Card, Cards},
 };
 
 /// Project a vCard file into a fillable TOML form.
 ///
-/// vCard has a single component type, so a single card (or a blank file) is
+/// vCard has a single record type, so a single card (or a blank file) is
 /// flattened at the document root (bare keys, top-level `[name]` /
 /// `[[email]]`, no wrapper); two or more cards become a list of `[[card]]`
 /// blocks. Known fields are prefilled, the rest listed empty.
-pub fn project(cards: &[VCard], version: VCardVersion) -> String {
+pub fn project(cards: &Cards<'_>, version: VcardVersion) -> String {
     trace!(
         "projecting {} card(s) to TOML (vCard {})",
-        cards.len(),
-        vcard::version_str(version),
+        cards.0.len(),
+        &*version,
     );
 
-    if cards.len() > 1 {
+    if cards.0.len() > 1 {
         project_blocks(cards, version)
     } else {
-        project_flat(cards.first(), version)
+        project_flat(cards.0.first(), version)
     }
 }
 
 /// Render one card flat at the document root: bare keys at the top level,
 /// with `[name]` / `[[email]]` sections, no wrapping header.
-fn project_flat(card: Option<&VCard>, version: VCardVersion) -> String {
+fn project_flat(card: Option<&VcardCst<'_>>, version: VcardVersion) -> String {
     let mut out = String::new();
     out.push_str("# vCard ");
-    out.push_str(vcard::version_str(version));
+    out.push_str(&version);
     out.push_str(" as TOML, edited by tcard.\n");
     out.push_str("#\n");
     out.push_str("# Fill what you need; empty fields are ignored. Properties\n");
@@ -86,10 +82,10 @@ fn project_flat(card: Option<&VCard>, version: VCardVersion) -> String {
 }
 
 /// Render every card as a `[[card]]` block, the multi-card form.
-fn project_blocks(cards: &[VCard], version: VCardVersion) -> String {
+fn project_blocks(cards: &Cards<'_>, version: VcardVersion) -> String {
     let mut out = String::new();
     out.push_str("# vCard ");
-    out.push_str(vcard::version_str(version));
+    out.push_str(&version);
     out.push_str(" as TOML, edited by tcard.\n");
     out.push_str("#\n");
     out.push_str("# Each card is a [[card]] block; repeat a block for repeated\n");
@@ -97,7 +93,7 @@ fn project_blocks(cards: &[VCard], version: VCardVersion) -> String {
     out.push_str("# blocks are ignored. Properties tcard does not model are kept\n");
     out.push_str("# verbatim, not shown here.\n");
 
-    for card in cards {
+    for card in &cards.0 {
         project_card(&mut out, Some(card), version, Some("card"));
     }
 
@@ -108,8 +104,8 @@ fn project_blocks(cards: &[VCard], version: VCardVersion) -> String {
 /// a `[[prefix]]` block with nested sections.
 fn project_card(
     out: &mut String,
-    card: Option<&VCard>,
-    version: VCardVersion,
+    card: Option<&VcardCst<'_>>,
+    version: VcardVersion,
     prefix: Option<&str>,
 ) {
     if let Some(prefix) = prefix {
@@ -126,14 +122,14 @@ fn project_card(
         .collect();
     let bare_lines: Vec<Line> = bare
         .iter()
-        .flat_map(|field| field.lines(&entries_for(card, field), version, prefix))
+        .flat_map(|field| field.lines(&held(card, field), version, prefix))
         .collect();
     emit_lines(out, &bare_lines, comment_column(bare_lines.iter()));
 
     // Each section is set off by a blank line and aligned within itself.
     for field in &FIELDS[bare.len()..] {
         out.push('\n');
-        let lines = field.lines(&entries_for(card, field), version, prefix);
+        let lines = field.lines(&held(card, field), version, prefix);
         emit_lines(out, &lines, comment_column(lines.iter()));
     }
 }
@@ -142,17 +138,16 @@ fn project_card(
 ///
 /// The buffer's shape is detected: a flat card (bare keys, no `[[card]]`
 /// header) folds onto the single card; otherwise each `[[card]]` block
-/// reconciles a card. Through the format-preserving editor (see
-/// [`crate::edit`]) only the lines that actually changed are re-rendered, so
-/// unmodeled properties (including the app-managed `UID` and `VERSION`),
-/// folding, ordering and casing are all kept verbatim. A filled block updates
+/// reconciles a card. Only the lines that actually changed are rewritten, so
+/// unmodelled properties (the app-managed `UID` and `VERSION` among them),
+/// ordering and parameter casing are all kept verbatim. A filled block updates
 /// or adds a card, an empty or absent block removes it.
 pub fn apply(original_src: &str, edited_toml: &str) -> Result<String> {
     trace!("applying {} bytes of edited TOML", edited_toml.len());
 
     let doc: DocumentMut = edited_toml.parse().map_err(TcardError::ParseToml)?;
 
-    let mut card = Card::parse(original_src);
+    let mut cards = crate::vcard::parse(original_src)?;
 
     if doc.contains_key("card") {
         // Block form: one [[card]] table per card.
@@ -164,48 +159,36 @@ pub fn apply(original_src: &str, edited_toml: &str) -> Result<String> {
             .filter(|table| card_has_content(*table))
             .collect();
 
-        card.set_component_count("VCARD", blocks.len());
-        for (component, table) in card.components_mut("VCARD").zip(blocks) {
-            apply_card(component, table);
+        cards.set_count(blocks.len());
+        for (card, table) in cards.0.iter_mut().zip(blocks) {
+            apply_card(card, table);
         }
     } else {
         // Flat form: the document top level is one card's table.
-        let count = usize::from(card_has_content(doc.as_table()));
-        card.set_component_count("VCARD", count);
-        if let Some(component) = card.components_mut("VCARD").next() {
-            apply_card(component, doc.as_table());
+        cards.set_count(usize::from(card_has_content(doc.as_table())));
+        if let Some(card) = cards.0.first_mut() {
+            apply_card(card, doc.as_table());
         }
     }
 
-    Ok(card.to_string())
+    Ok(cards.to_string())
 }
 
 /// Rewrite one card's fields from its TOML table, with a minimal diff.
 ///
 /// Each field is folded onto the lines the card already holds for it, so a
 /// parameter or a component the document does not write survives.
-fn apply_card(component: &mut Component, table: &dyn TableLike) {
+fn apply_card(card: &mut VcardCst<'_>, table: &dyn TableLike) {
     for field in FIELDS {
-        let originals: Vec<String> = component
-            .get_all(field.name)
-            .into_iter()
-            .map(ToString::to_string)
-            .collect();
-
-        component.set_all(field.name, &field.content_lines(table, &originals));
+        let held = card.lines(field.name);
+        card.set_lines(field.name, &field.content_lines(table, &held));
     }
 }
 
-/// The entries of a card matching a field's name (empty when the card is
-/// absent, for the example block).
-fn entries_for<'a>(card: Option<&'a VCard>, field: &Field) -> Vec<&'a VCardEntry> {
-    card.map(|card| {
-        card.entries
-            .iter()
-            .filter(|entry| entry.name.as_str() == field.name)
-            .collect()
-    })
-    .unwrap_or_default()
+/// The content lines a card holds for a field (empty when the card is absent,
+/// for the example block).
+fn held(card: Option<&VcardCst<'_>>, field: &Field) -> Vec<String> {
+    card.map(|card| card.lines(field.name)).unwrap_or_default()
 }
 
 /// Whether a `[[card]]` table carries any modeled value, i.e. is a real card
@@ -220,9 +203,9 @@ fn card_has_content(table: &dyn TableLike) -> bool {
 mod tests {
     use alloc::vec::Vec;
 
-    use calcard::vcard::VCardVersion;
+    use vcard::version::VcardVersion;
 
-    use crate::vcard;
+    use crate::vcard::{Cards, parse};
 
     const SAMPLE: &str = "BEGIN:VCARD\r\n\
         VERSION:4.0\r\n\
@@ -246,8 +229,8 @@ mod tests {
 
     #[test]
     fn project_prefills_known_fields() {
-        let card = vcard::parse(SAMPLE).unwrap();
-        let toml = super::project(&[card], VCardVersion::V4_0);
+        let card = parse(SAMPLE).unwrap();
+        let toml = super::project(&card, VcardVersion::V4_0);
 
         // A single card flattens at the root, no [[card]] wrapper.
         assert!(!toml.contains("[[card]]"));
@@ -263,7 +246,7 @@ mod tests {
 
     #[test]
     fn blank_project_layout() {
-        let toml = super::project(&[], VCardVersion::V4_0);
+        let toml = super::project(&Cards::default(), VcardVersion::V4_0);
 
         // A blank file flattens at the root; bare keys lead, sections follow.
         assert!(!toml.contains("[[card]]"));
@@ -293,10 +276,10 @@ mod tests {
     #[test]
     fn uid_is_hidden_and_app_managed() {
         let src = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:A\r\nUID:urn:uuid:keep\r\nEND:VCARD\r\n";
-        let card = vcard::parse(src).unwrap();
+        let card = parse(src).unwrap();
 
         // Hidden from the form.
-        let toml = super::project(&[card], VCardVersion::V4_0);
+        let toml = super::project(&card, VcardVersion::V4_0);
         assert!(!toml.contains("uid"));
 
         // Preserved on round-trip, and not overridable from the buffer.
@@ -308,8 +291,8 @@ mod tests {
 
     #[test]
     fn n_required_only_before_v4() {
-        let v4 = super::project(&[], VCardVersion::V4_0);
-        let v3 = super::project(&[], VCardVersion::V3_0);
+        let v4 = super::project(&Cards::default(), VcardVersion::V4_0);
+        let v3 = super::project(&Cards::default(), VcardVersion::V3_0);
 
         let name_required = |toml: &str| {
             toml.lines()
@@ -322,7 +305,7 @@ mod tests {
 
     #[test]
     fn hints_are_tab_aligned() {
-        let toml = super::project(&[], VCardVersion::V4_0);
+        let toml = super::project(&Cards::default(), VcardVersion::V4_0);
 
         // Every inline hint is separated from its value by a tab, so the
         // comment lands at a tab stop instead of a far, space-padded column.
@@ -342,12 +325,12 @@ mod tests {
 
     #[test]
     fn date_fields_are_not_dropped() {
-        // calcard parses BDAY/ANNIVERSARY to a typed date with no text
-        // accessor; they must still project (and survive apply), not vanish.
+        // A date projects as a native TOML value and folds back into the
+        // basic form the card wrote, rather than vanishing between the two.
         let src = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:A\r\n\
             BDAY:19960415\r\nANNIVERSARY:20090808\r\nEND:VCARD\r\n";
-        let card = vcard::parse(src).unwrap();
-        let toml = super::project(&[card], VCardVersion::V4_0);
+        let card = parse(src).unwrap();
+        let toml = super::project(&card, VcardVersion::V4_0);
 
         assert!(toml.contains("birthday = 1996-04-15"));
         assert!(toml.contains("anniversary = 2009-08-08"));
@@ -356,8 +339,8 @@ mod tests {
 
     #[test]
     fn adr_pobox_and_ext_deprecated_by_version() {
-        let v4 = super::project(&[], VCardVersion::V4_0);
-        let v3 = super::project(&[], VCardVersion::V3_0);
+        let v4 = super::project(&Cards::default(), VcardVersion::V4_0);
+        let v3 = super::project(&Cards::default(), VcardVersion::V3_0);
 
         // RFC 6350 deprecates pobox/ext: hidden in 4.0, flagged before it.
         for key in ["pobox =", "ext ="] {
@@ -374,7 +357,7 @@ mod tests {
 
     #[test]
     fn photo_has_no_type_line() {
-        let toml = super::project(&[], VCardVersion::V4_0);
+        let toml = super::project(&Cards::default(), VcardVersion::V4_0);
         let photo = toml.split("[[photo]]").nth(1).unwrap();
 
         assert!(!photo.lines().take(2).any(|line| line.starts_with("type =")));
@@ -383,8 +366,8 @@ mod tests {
     #[test]
     fn gender_roundtrips_with_identity() {
         let src = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:A\r\nGENDER:O;intersex\r\nEND:VCARD\r\n";
-        let card = vcard::parse(src).unwrap();
-        let toml = super::project(&[card], VCardVersion::V4_0);
+        let card = parse(src).unwrap();
+        let toml = super::project(&card, VcardVersion::V4_0);
 
         assert!(toml.contains("sex = \"O\""));
         assert!(toml.contains("identity = \"intersex\""));
@@ -397,16 +380,16 @@ mod tests {
     fn apply_projection_is_a_no_op() {
         // Projecting then applying an untouched buffer must reproduce the
         // source byte-for-byte: the minimal-diff guarantee at its limit.
-        let card = vcard::parse(CLEAN).unwrap();
-        let toml = super::project(&[card], VCardVersion::V4_0);
+        let card = parse(CLEAN).unwrap();
+        let toml = super::project(&card, VcardVersion::V4_0);
 
         assert_eq!(super::apply(CLEAN, &toml).unwrap(), CLEAN);
     }
 
     #[test]
     fn apply_changes_only_the_edited_line() {
-        let card = vcard::parse(CLEAN).unwrap();
-        let toml = super::project(&[card], VCardVersion::V4_0).replace("John Doe", "Jane Roe");
+        let card = parse(CLEAN).unwrap();
+        let toml = super::project(&card, VcardVersion::V4_0).replace("John Doe", "Jane Roe");
 
         let out = super::apply(CLEAN, &toml).unwrap();
 
@@ -415,8 +398,8 @@ mod tests {
 
     #[test]
     fn apply_roundtrip_preserves_unknown_properties() {
-        let card = vcard::parse(SAMPLE).unwrap();
-        let toml = super::project(&[card], VCardVersion::V4_0);
+        let card = parse(SAMPLE).unwrap();
+        let toml = super::project(&card, VcardVersion::V4_0);
 
         let out = super::apply(SAMPLE, &toml).unwrap();
 
@@ -442,8 +425,8 @@ mod tests {
             UID:urn:uuid:1234\r\n\
             EMAIL;TYPE=work:ada@analytical.example\r\n\
             END:VCARD\r\n";
-        let card = vcard::parse(filled).unwrap();
-        let toml = super::project(&[card], VCardVersion::V4_0);
+        let card = parse(filled).unwrap();
+        let toml = super::project(&card, VcardVersion::V4_0);
 
         let out = super::apply(filled, &toml).unwrap();
 
@@ -458,7 +441,7 @@ mod tests {
     fn apply_empty_buffer_removes_cards() {
         // The blank scaffold is one empty flat card; applying it keeps no
         // card (an empty card is ignored, like a blank field).
-        let blank = super::project(&[], VCardVersion::V4_0);
+        let blank = super::project(&Cards::default(), VcardVersion::V4_0);
 
         let out = super::apply(SAMPLE, &blank).unwrap();
 
@@ -482,8 +465,8 @@ mod tests {
     fn projects_and_edits_multiple_cards() {
         let src = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:first\r\nEND:VCARD\r\n\
             BEGIN:VCARD\r\nVERSION:4.0\r\nFN:second\r\nEND:VCARD\r\n";
-        let cards = vcard::parse_all(src).unwrap();
-        let toml = super::project(&cards, VCardVersion::V4_0);
+        let cards = parse(src).unwrap();
+        let toml = super::project(&cards, VcardVersion::V4_0);
 
         // Two cards project as two blocks (ignore the comment mention).
         assert_eq!(toml.lines().filter(|line| *line == "[[card]]").count(), 2);

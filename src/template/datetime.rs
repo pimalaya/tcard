@@ -1,63 +1,42 @@
-//! vCard date conversions between calcard's [`PartialDateTime`], native TOML
-//! date-times, and RFC 6350 basic ISO 8601 strings.
+//! # Dates
 //!
-//! `BDAY`/`ANNIVERSARY` project as a native TOML `date`/`datetime` when the
-//! value is complete; a partial value (yearless `--0415`, year only) has no
-//! native TOML form and falls back to a quoted RFC 6350 string.
+//! Conversions between a card's RFC 6350 basic ISO 8601 dates and the native
+//! TOML `date` / `datetime` the projection writes them as.
+//!
+//! `BDAY` and `ANNIVERSARY` project as a native TOML value when the value is
+//! complete; a partial one (yearless `--0415`, year only) has no native TOML
+//! form and falls back to a quoted string as the card wrote it.
 
 use alloc::{
     format,
     string::{String, ToString},
 };
 
-use calcard::common::PartialDateTime;
 use toml_edit::{Date, Datetime, Offset, Time};
 
-/// Build a native TOML value from a vCard date-time, or `None` when it is
-/// partial (yearless or year only) and so has no native TOML form. An
-/// all-day value becomes a local date, a UTC value an offset date-time,
-/// anything else a local date-time.
-pub fn toml_date(dt: &PartialDateTime) -> Option<Datetime> {
-    let date = Date {
-        year: dt.year?,
-        month: dt.month?,
-        day: dt.day?,
-    };
+use crate::template::util::toml_str;
 
-    let Some((hour, minute)) = dt.hour.zip(dt.minute) else {
-        return Some(Datetime {
-            date: Some(date),
-            time: None,
-            offset: None,
-        });
-    };
-
-    let time = Time {
-        hour,
-        minute,
-        second: Some(dt.second.unwrap_or(0)),
-        nanosecond: None,
-    };
-    let utc = matches!((dt.tz_hour, dt.tz_minute), (Some(0), Some(0)));
-
-    Some(Datetime {
-        date: Some(date),
-        time: Some(time),
-        offset: utc.then_some(Offset::Z),
-    })
+/// A date as the projection writes one: native where the value is complete,
+/// the quoted string the card wrote where it is partial.
+pub fn date_rhs(value: &str) -> String {
+    match toml_datetime(value) {
+        Some(native) => native.to_string(),
+        None => toml_str(value),
+    }
 }
 
-/// Read an RFC 6350 basic ISO 8601 date-time back into a native TOML value,
-/// or `None` when it carries no complete date and so has no native form.
+/// Read an RFC 6350 basic ISO 8601 date-time into a native TOML value, or
+/// `None` when it carries no complete date and so has no native form.
 ///
-/// A non-UTC offset is dropped rather than refused, which is what
-/// [`toml_date`] does with the same value read from a card.
-#[cfg(feature = "merge")]
+/// The extended form a real card sometimes writes (`1996-04-15`) is read too,
+/// and a non-UTC offset is dropped rather than refused.
 pub fn toml_datetime(value: &str) -> Option<Datetime> {
     let (date, time) = match value.split_once('T') {
         Some((date, time)) => (date, Some(time)),
         None => (value, None),
     };
+
+    let date = date.replace('-', "");
 
     if date.len() != 8 {
         return None;
@@ -123,33 +102,4 @@ pub fn toml_date_value(dtm: &Datetime) -> String {
     }
 
     value
-}
-
-/// Render a vCard date-time as its RFC 6350 basic ISO 8601 string, covering
-/// the partial forms TOML cannot hold natively (`--0415` for a yearless
-/// birthday, `2009` for a year only), with a `T..` time when present.
-pub fn vcard_date(dt: &PartialDateTime) -> String {
-    let mut out = String::new();
-
-    match (dt.year, dt.month, dt.day) {
-        (Some(y), Some(m), Some(d)) => out.push_str(&format!("{y:04}{m:02}{d:02}")),
-        (Some(y), Some(m), None) => out.push_str(&format!("{y:04}-{m:02}")),
-        (Some(y), None, None) => out.push_str(&format!("{y:04}")),
-        (None, Some(m), Some(d)) => out.push_str(&format!("--{m:02}{d:02}")),
-        (None, Some(m), None) => out.push_str(&format!("--{m:02}")),
-        (None, None, Some(d)) => out.push_str(&format!("---{d:02}")),
-        _ => {}
-    }
-
-    if let Some(hour) = dt.hour {
-        out.push_str(&format!("T{hour:02}"));
-        if let Some(minute) = dt.minute {
-            out.push_str(&format!("{minute:02}"));
-            if let Some(second) = dt.second {
-                out.push_str(&format!("{second:02}"));
-            }
-        }
-    }
-
-    out
 }

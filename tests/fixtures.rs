@@ -8,13 +8,13 @@
 //!
 //! Projection is deterministic, so equality is asserted for every fixture.
 //! Round-trip is checked only for fixtures whose source is already in
-//! calcard's canonical form (no `.lossy` marker file): real exports often
+//! the reader's canonical form (no `.lossy` marker file): real exports often
 //! reorder structured components or drop unmodeled parameters on read, which
 //! apply then canonicalises, so byte-exact round-trip is not expected there.
 
 use std::{fs, path::Path};
 
-use calcard::vcard::VCardVersion;
+use vcard::version::VcardVersion;
 
 #[test]
 fn fixtures_project_and_round_trip() {
@@ -38,11 +38,8 @@ fn fixtures_project_and_round_trip() {
         let vcf = fs::read_to_string(dir.join(format!("{name}.vcf"))).unwrap();
         let expected = fs::read_to_string(&path).unwrap();
 
-        let cards = tcard::vcard::parse_all(&vcf).unwrap();
-        let version = cards
-            .first()
-            .and_then(|card| card.version())
-            .unwrap_or(VCardVersion::V4_0);
+        let cards = tcard::vcard::parse(&vcf).unwrap();
+        let version = cards.version().unwrap_or(VcardVersion::V4_0);
 
         let projected = match mode {
             "all" => tcard::template::project(&cards, version),
@@ -56,7 +53,7 @@ fn fixtures_project_and_round_trip() {
         );
 
         // Untouched, the projection folds back onto the source byte-for-byte,
-        // unless the source is flagged `.lossy` (calcard canonicalises it).
+        // unless the source is flagged `.lossy` (apply canonicalises it).
         if !dir.join(format!("{name}.lossy")).exists() {
             let round_trip = tcard::template::apply(&vcf, &expected).unwrap();
             assert_eq!(round_trip, vcf, "round-trip mismatch: {}", path.display());

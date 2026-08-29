@@ -29,18 +29,18 @@ sex = ""	# F, M, O, N, U
 identity = ""
 
 [[email]]
-type = "work"			# home, work
+type = "WORK"			# home, work
 value = "john.doe@ibm.com"	# email address
 
 [[phone]]
-type = "cell"		# home, work, cell, fax, voice, video, pager, text, textphone
+type = "CELL"		# home, work, cell, fax, voice, video, pager, text, textphone
 value = "905-666-1234"	# +1-555-0100
 [[phone]]
-type = "work,voice"	# home, work, cell, fax, voice, video, pager, text, textphone
+type = "WORK,VOICE"	# home, work, cell, fax, voice, video, pager, text, textphone
 value = "905-555-1234"	# +1-555-0100
 
 [[address]]
-type = "home"		# home, work
+type = "HOME"		# home, work
 pobox = "ASB-123"	# deprecated
 ext = ""		# deprecated
 street = "15 Crescent moon drive"

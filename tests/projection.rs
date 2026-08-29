@@ -4,34 +4,24 @@
 //! untouched document must leave the card exactly as it was, projecting the
 //! folded card again must give the very same document, and a property the
 //! vocabulary does not model must come out the other side byte for byte. The
-//! generator below builds cards out of the modelled vocabulary in calcard's
-//! canonical spelling, so a failure is the projection's and not the writer's.
-//!
-//! The laws that do not hold today are kept here as ignored tests, each
-//! naming the finding that reproduces it.
+//! generator below writes cards the way a fold-back writes one, so a failure
+//! is the projection's and not the generator's.
 
-use calcard::vcard::{VCard, VCardVersion};
 use proptest::prelude::*;
+use vcard::version::VcardVersion;
 
 /// Fold an untouched projection of a card back onto its own source.
 fn round_trip(src: &str) -> String {
-    let cards = tcard::vcard::parse_all(src).unwrap();
-    let toml = tcard::template::project(&cards, version(&cards));
+    let toml = project(src);
     tcard::template::apply(src, &toml).unwrap()
 }
 
 /// Project a card the way the CLI does, at the version the card declares.
 fn project(src: &str) -> String {
-    let cards = tcard::vcard::parse_all(src).unwrap();
-    tcard::template::project(&cards, version(&cards))
-}
+    let cards = tcard::vcard::parse(src).unwrap();
+    let version = cards.version().unwrap_or(VcardVersion::V4_0);
 
-/// The version a file is read at: the first card's, defaulting to 4.0.
-fn version(cards: &[VCard]) -> VCardVersion {
-    cards
-        .first()
-        .and_then(VCard::version)
-        .unwrap_or(VCardVersion::V4_0)
+    tcard::template::project(&cards, version)
 }
 
 /// Wrap content lines into a vCard 4.0 file.
@@ -47,8 +37,8 @@ fn card(lines: &[String]) -> String {
     out
 }
 
-/// Escape a text value the way RFC 6350 section 3.4 asks, which is how
-/// calcard writes one back.
+/// Escape a text value the way RFC 6350 section 3.4 asks, which is how a
+/// fold-back writes one.
 fn escape(value: &str) -> String {
     value
         .replace('\\', "\\\\")
@@ -57,7 +47,7 @@ fn escape(value: &str) -> String {
 }
 
 /// Join structured components and drop the trailing empty ones, which is the
-/// canonical spelling calcard emits.
+/// canonical spelling a fold-back emits.
 fn structured(components: &[String]) -> String {
     let mut components: Vec<&String> = components.iter().collect();
 
@@ -96,31 +86,14 @@ fn value() -> impl Strategy<Value = String> {
     .prop_filter("a value is not empty", |text| !text.is_empty())
 }
 
-/// A value fit for a comma-separated list, which is [`value`] without the
-/// characters that need escaping: an escape inside such an item does not
-/// survive the read, so the generator leaves that case to the ignored law
-/// below rather than failing on it everywhere.
-fn list_value() -> impl Strategy<Value = String> {
-    value().prop_filter("a list item needs no escaping", |text| {
-        !text.contains([',', ';', '\\'])
-    })
-}
-
 /// The same, or nothing, for a component that may be left out.
 fn component() -> impl Strategy<Value = String> {
     prop_oneof![Just(String::new()), value()]
 }
 
-/// A gender identity, which RFC 6350 section 6.2.7 makes free text. A single
-/// character is read back as a sex code, so it is left to the ignored law
-/// below rather than failing the round trip everywhere.
+/// A gender identity, which RFC 6350 section 6.2.7 makes free text.
 fn identity() -> impl Strategy<Value = String> {
-    prop_oneof![
-        Just(String::new()),
-        value().prop_filter("a one-letter identity reads as a sex code", |text| {
-            text.chars().count() > 1
-        }),
-    ]
+    prop_oneof![Just(String::new()), value()]
 }
 
 /// A `TYPE` parameter drawn from the sets the projection lists.
@@ -154,8 +127,8 @@ fn extension_line() -> impl Strategy<Value = String> {
 }
 
 prop_compose! {
-    /// A vCard 4.0 file built from the modelled vocabulary, written the way
-    /// calcard writes one, plus a few properties outside that vocabulary.
+    /// A vCard 4.0 file built from the modelled vocabulary, written the way a
+    /// fold-back writes one, plus a few properties outside that vocabulary.
     ///
     /// `ADR` is generated with the `pobox` and `ext` components vCard 4.0
     /// deprecates and the projection therefore hides, since hiding one is
@@ -166,7 +139,7 @@ prop_compose! {
         title in prop::option::of(value()),
         note in prop::option::of(value()),
         organization in prop::collection::vec(value(), 0..3),
-        categories in prop::collection::vec(list_value(), 0..3),
+        categories in prop::collection::vec(value(), 0..3),
         gender in prop::option::of((prop::sample::select(vec!["F", "M", "O", "N", "U"]), identity())),
         emails in prop::collection::vec((type_param(), value()), 0..3),
         phones in prop::collection::vec((type_param(), value()), 0..3),
@@ -220,8 +193,8 @@ prop_compose! {
 proptest! {
     /// The foundation: an untouched projection folds back onto the card it
     /// came from, byte for byte. Every other law rests on this one, and a
-    /// card written in calcard's own canonical form has nothing to
-    /// renormalise, so the comparison can be exact.
+    /// card written in that canonical form has nothing to renormalise, so the
+    /// comparison can be exact.
     #[test]
     fn folding_an_untouched_projection_changes_nothing(src in vcard()) {
         prop_assert_eq!(round_trip(&src), src.clone());
@@ -358,10 +331,7 @@ fn every_fixture_settles_after_one_round_trip() {
 
 /// An escape inside a multi-valued item comes back as it was, rather than
 /// eating the space behind it.
-///
-/// See findings/tcard-tcal-escape-eats-a-space.md.
 #[test]
-#[ignore = "fails: see findings/tcard-tcal-escape-eats-a-space.md"]
 fn an_escape_in_a_list_item_keeps_the_space_behind_it() {
     for escaped in ["\\,", "\\;", "\\\\"] {
         let src = format!(
@@ -374,10 +344,7 @@ fn an_escape_in_a_list_item_keeps_the_space_behind_it() {
 
 /// A gender identity is free text and survives the round trip as written,
 /// including a one-letter one.
-///
-/// See findings/tcard-gender-identity-uppercased.md.
 #[test]
-#[ignore = "fails: see findings/tcard-gender-identity-uppercased.md"]
 fn a_one_letter_gender_identity_keeps_its_case() {
     let src = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:Jane\r\nGENDER:F;m\r\nEND:VCARD\r\n";
 

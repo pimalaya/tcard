@@ -1,5 +1,11 @@
-//! Small value helpers shared across projection and apply: TOML rendering,
-//! vCard text escaping, and reading calcard entry values.
+//! # Value helpers
+//!
+//! The small conversions projection and apply share: rendering TOML scalars,
+//! and reading a content line's value and parameters.
+//!
+//! A line is read through the same [`crate::template::patch`] grammar that
+//! patches it, so what the projection shows and what a fold-back writes agree
+//! by construction rather than by round trip.
 
 use alloc::{
     borrow::ToOwned,
@@ -7,13 +13,9 @@ use alloc::{
     vec::Vec,
 };
 
-use calcard::{
-    common::IanaString,
-    vcard::{VCardEntry, VCardParameterName, VCardParameterValue, VCardValue},
-};
 use toml_edit::{Array, Item, TableLike, Value};
 
-use crate::template::{datetime::vcard_date, patch};
+use crate::template::patch;
 
 /// Render a string as a quoted, escaped TOML scalar.
 pub fn toml_str(value: &str) -> String {
@@ -48,6 +50,28 @@ pub fn escape(value: &str) -> String {
     out
 }
 
+/// Undo that escaping, the inverse of [`escape`]: what a card wrote as `\,` is
+/// a comma, and either spelling of an escaped newline is one.
+pub fn unescape(value: &str) -> String {
+    let mut out = String::with_capacity(value.len());
+    let mut chars = value.chars();
+
+    while let Some(ch) = chars.next() {
+        if ch != '\\' {
+            out.push(ch);
+            continue;
+        }
+
+        match chars.next() {
+            Some('n' | 'N') => out.push('\n'),
+            Some(next) => out.push(next),
+            None => out.push('\\'),
+        }
+    }
+
+    out
+}
+
 /// The TOML tables addressed by an array-of-tables (`[[key]]`) or an inline
 /// array of inline tables.
 pub fn tables(item: &Item) -> Vec<&dyn TableLike> {
@@ -64,75 +88,25 @@ pub fn tables(item: &Item) -> Vec<&dyn TableLike> {
     }
 }
 
-/// First value of an entry as text.
-pub fn entry_text(entry: &VCardEntry) -> Option<&str> {
-    entry.values.first().and_then(|value| value.as_text())
+/// A line's value as one unescaped string, its commas kept literal.
+///
+/// A single-valued property is one value however it is punctuated, so a comma
+/// inside a URI stays in the value rather than truncating it.
+pub fn text(line: &str) -> String {
+    unescape(patch::value(line))
 }
 
-/// First value of a scalar entry as a string. Text-like values pass through;
-/// a date or date-time value (`BDAY`, `ANNIVERSARY`) is rendered back to a
-/// string, since calcard parses those to a typed value with no text accessor
-/// (so a plain `as_text` would silently drop them).
-pub fn scalar_text(entry: &VCardEntry) -> String {
-    let Some(value) = entry.values.first() else {
-        return String::new();
-    };
-
-    if let Some(text) = value.as_text() {
-        return text.to_owned();
-    }
-
-    if let VCardValue::PartialDateTime(date) = value {
-        return vcard_date(date);
-    }
-
-    value
-        .clone()
-        .into_text()
-        .map(|text| text.into_owned())
-        .unwrap_or_default()
-}
-
-/// All texts of an entry, flattening structured components.
-pub fn entry_texts(entry: &VCardEntry) -> Vec<String> {
-    entry.values.iter().flat_map(value_strings).collect()
-}
-
-/// Ordered components of a structured entry (`N`, `ADR`, `GENDER`).
-pub fn entry_components(entry: &VCardEntry) -> Vec<String> {
-    match entry.values.first() {
-        Some(VCardValue::Component(parts)) => parts.clone(),
-        _ => entry
-            .values
-            .iter()
-            .filter_map(|value| value.as_text().map(str::to_owned))
-            .collect(),
-    }
-}
-
-/// All texts carried by a single value.
-fn value_strings(value: &VCardValue) -> Vec<String> {
-    match value {
-        VCardValue::Component(parts) => parts.clone(),
-        other => other.as_text().map(str::to_owned).into_iter().collect(),
-    }
-}
-
-/// `TYPE` parameter values of an entry, lowercased.
-pub fn type_strings(entry: &VCardEntry) -> Vec<String> {
-    entry
-        .parameters(&VCardParameterName::Type)
-        .filter_map(param_text)
+/// A line's value as the items `sep` separates, each unescaped on its own.
+pub fn items(line: &str, sep: char) -> Vec<String> {
+    patch::items(patch::value(line), sep)
+        .into_iter()
+        .map(unescape)
         .collect()
 }
 
-/// Text form of a parameter value, for `TYPE`.
-fn param_text(value: &VCardParameterValue) -> Option<String> {
-    match value {
-        VCardParameterValue::Text(text) => Some(text.clone()),
-        VCardParameterValue::Type(ty) => Some(ty.as_str().to_lowercase()),
-        _ => None,
-    }
+/// A line's `TYPE` values, joined the way the projection writes them.
+pub fn types(line: &str) -> String {
+    patch::types(line).join(",")
 }
 
 /// Read named components from a TOML table, escaped and in order, each

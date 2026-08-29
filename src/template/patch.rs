@@ -69,6 +69,20 @@ pub fn rewritten(original: Option<&str>, name: &str, types: Option<&str>) -> Str
     out
 }
 
+/// The `TYPE` values a line carries, in source order, a bare vCard 2.1 type
+/// parameter (`;WORK`) included.
+///
+/// This is the grammar [`rewritten`] writes a type back with, so what the
+/// projection shows and what a fold-back compares against agree.
+pub fn types(line: &str) -> Vec<&str> {
+    split(prefix(line), ';')
+        .iter()
+        .skip(1)
+        .filter_map(|param| type_of(param))
+        .flatten()
+        .collect()
+}
+
 /// Split a value into the items `sep` separates, an escaped separator (RFC
 /// 6350 section 3.4) belonging to the item it sits in.
 pub fn items(value: &str, sep: char) -> Vec<&str> {
@@ -108,7 +122,7 @@ fn colon(line: &str) -> usize {
 }
 
 /// Split on every `sep` outside a quoted parameter value.
-fn split(text: &str, sep: char) -> Vec<&str> {
+pub fn split(text: &str, sep: char) -> Vec<&str> {
     let mut out = Vec::new();
     let mut quoted = false;
     let mut start = 0;

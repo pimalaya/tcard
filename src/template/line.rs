@@ -1,3 +1,5 @@
+//! # Lines
+//!
 //! Projected lines and their tab-aligned inline comments.
 
 use alloc::string::String;

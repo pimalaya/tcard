@@ -40,14 +40,14 @@ type = "home,voice"		# home, work, cell, fax, voice, video, pager, text, textpho
 value = "tel:+1-404-555-1212"	# +1-555-0100
 
 [[address]]
-type = "work"	# home, work
+type = "WORK"	# home, work
 street = "100 Waters Edge"
 locality = "Baytown"
 region = "LA"
 code = "30314"
 country = "United States of America"
 [[address]]
-type = "home"	# home, work
+type = "HOME"	# home, work
 street = "42 Plantation St."
 locality = "Baytown"
 region = "LA"

@@ -1,5 +1,7 @@
-//! The modeled vCard vocabulary: how each property maps to a TOML key and
-//! how it projects and reads back.
+//! # Modelled vocabulary
+//!
+//! The vCard properties the form shows: how each maps to a TOML key, and how
+//! it projects and reads back.
 
 use core::slice;
 
@@ -11,16 +13,16 @@ use alloc::{
     vec::Vec,
 };
 
-use calcard::vcard::{VCardEntry, VCardValue, VCardVersion};
 use toml_edit::TableLike;
+use vcard::version::VcardVersion;
 
 use crate::template::{
-    datetime::{toml_date, toml_date_value, vcard_date},
+    datetime::{date_rhs, toml_date_value},
     line::Line,
     patch,
     util::{
-        entry_components, entry_text, entry_texts, escape, join_components, read_components,
-        read_type, scalar_text, tables, toml_array, toml_str, type_strings,
+        escape, items, join_components, read_components, read_type, tables, text, toml_array,
+        toml_str, types,
     },
 };
 
@@ -83,7 +85,7 @@ impl Kind {
 pub struct Field {
     /// TOML key.
     pub key: &'static str,
-    /// Canonical vCard property name (matches calcard's `as_str`).
+    /// Canonical vCard property name.
     pub name: &'static str,
     /// Whether the property is required.
     pub req: Req,
@@ -296,23 +298,19 @@ pub const FIELDS: &[Field] = &[
 
 impl Field {
     /// Whether this property is required at `version`.
-    fn required(&self, version: VCardVersion) -> bool {
+    fn required(&self, version: VcardVersion) -> bool {
         match self.req {
             Req::No => false,
             Req::Always => true,
-            Req::Legacy => version != VCardVersion::V4_0,
+            Req::Legacy => version != VcardVersion::V4_0,
         }
     }
 
-    /// Render this field into projected lines. Sectioned kinds head their
-    /// blocks under `prefix` (e.g. `vcard`): flat (`None`) gives `[name]`
-    /// and `[[email]]`, a card block gives `[card.name]` / `[[card.email]]`.
-    pub fn lines(
-        &self,
-        entries: &[&VCardEntry],
-        version: VCardVersion,
-        prefix: Option<&str>,
-    ) -> Vec<Line> {
+    /// Render this field into projected lines, read from the card's own
+    /// content lines for it. Sectioned kinds head their blocks under `prefix`
+    /// (e.g. `vcard`): flat (`None`) gives `[name]` and `[[email]]`, a card
+    /// block gives `[card.name]` / `[[card.email]]`.
+    pub fn lines(&self, held: &[String], version: VcardVersion, prefix: Option<&str>) -> Vec<Line> {
         let hint = if self.required(version) {
             Some("required".to_owned())
         } else {
@@ -322,10 +320,7 @@ impl Field {
 
         match &self.kind {
             Kind::Scalar => {
-                let value = entries
-                    .first()
-                    .map(|entry| scalar_text(entry))
-                    .unwrap_or_default();
+                let value = held.first().map(|line| text(line)).unwrap_or_default();
                 vec![Line {
                     lhs: format!("{} = {}", self.key, toml_str(&value)),
                     hint,
@@ -333,15 +328,8 @@ impl Field {
             }
 
             Kind::Date => {
-                // A complete date projects as a native TOML value, a partial
-                // one (yearless, year only) as a quoted RFC 6350 string, and
-                // a free-text date as the text it carries.
-                let rhs = match entries.first().and_then(|entry| entry.values.first()) {
-                    Some(VCardValue::PartialDateTime(dt)) => match toml_date(dt) {
-                        Some(native) => native.to_string(),
-                        None => toml_str(&vcard_date(dt)),
-                    },
-                    Some(other) => toml_str(other.as_text().unwrap_or_default()),
+                let rhs = match held.first() {
+                    Some(line) => date_rhs(&text(line)),
                     None => toml_str(""),
                 };
                 vec![Line {
@@ -350,21 +338,18 @@ impl Field {
                 }]
             }
 
-            Kind::List { .. } => {
-                let items: Vec<String> = entries
-                    .iter()
-                    .flat_map(|entry| entry_texts(entry))
-                    .collect();
+            Kind::List { sep } => {
+                let values: Vec<String> = held.iter().flat_map(|line| items(line, *sep)).collect();
                 vec![Line {
-                    lhs: format!("{} = {}", self.key, toml_array(&items)),
+                    lhs: format!("{} = {}", self.key, toml_array(&values)),
                     hint,
                 }]
             }
 
             Kind::Structured(components) => {
-                let values = entries
+                let values = held
                     .first()
-                    .map(|entry| entry_components(entry))
+                    .map(|line| items(line, ';'))
                     .unwrap_or_default();
                 let mut lines = vec![Line {
                     lhs: format!("[{header}]"),
@@ -374,29 +359,28 @@ impl Field {
                 lines
             }
 
-            Kind::Typed { types } => {
+            Kind::Typed { types: accepted } => {
                 let mut lines = Vec::new();
 
-                if entries.is_empty() {
+                if held.is_empty() {
                     lines.push(Line {
                         lhs: format!("[[{header}]]"),
                         hint: None,
                     });
-                    type_line(&mut lines, "", types);
+                    type_line(&mut lines, "", accepted);
                     lines.push(Line {
                         lhs: "value = \"\"".into(),
                         hint,
                     });
                 } else {
-                    for entry in entries {
+                    for line in held {
                         lines.push(Line {
                             lhs: format!("[[{header}]]"),
                             hint: None,
                         });
-                        type_line(&mut lines, &type_strings(entry).join(","), types);
-                        let value = entry_text(entry).unwrap_or_default();
+                        type_line(&mut lines, &types(line), accepted);
                         lines.push(Line {
-                            lhs: format!("value = {}", toml_str(value)),
+                            lhs: format!("value = {}", toml_str(&text(line))),
                             hint: self.hint.map(str::to_owned),
                         });
                     }
@@ -405,28 +389,27 @@ impl Field {
                 lines
             }
 
-            Kind::TypedStructured { types, components } => {
+            Kind::TypedStructured {
+                types: accepted,
+                components,
+            } => {
                 let mut lines = Vec::new();
 
-                if entries.is_empty() {
+                if held.is_empty() {
                     lines.push(Line {
                         lhs: format!("[[{header}]]"),
                         hint: None,
                     });
-                    type_line(&mut lines, "", types);
+                    type_line(&mut lines, "", accepted);
                     lines.extend(component_lines(components, &[], version));
                 } else {
-                    for entry in entries {
+                    for line in held {
                         lines.push(Line {
                             lhs: format!("[[{header}]]"),
                             hint: None,
                         });
-                        type_line(&mut lines, &type_strings(entry).join(","), types);
-                        lines.extend(component_lines(
-                            components,
-                            &entry_components(entry),
-                            version,
-                        ));
+                        type_line(&mut lines, &types(line), accepted);
+                        lines.extend(component_lines(components, &items(line, ';'), version));
                     }
                 }
 
@@ -438,7 +421,7 @@ impl Field {
     /// This field's vCard content line(s) built from a TOML table (a single
     /// `[[card]]` table), without an end of line, skipping empty values.
     /// Empty when the field is absent or blank, so
-    /// [`crate::edit::tree::Component::set_all`] removes it.
+    /// [`crate::vcard::Card::set_lines`] removes it.
     ///
     /// `originals` are the card's own lines for this property, in the order
     /// the projection showed them. Each line is patched rather than rebuilt,
@@ -503,7 +486,7 @@ impl Field {
                 }
             }
 
-            Kind::Typed { .. } => {
+            Kind::Typed { types } => {
                 for (instance, table) in tables(item).into_iter().enumerate() {
                     let Some(value) = table
                         .get("value")
@@ -514,11 +497,11 @@ impl Field {
                     };
 
                     let original = originals.get(instance);
-                    lines.push(self.line(original, Some(read_type(table)), &escape(value)));
+                    lines.push(self.line(original, shown(types, table), &escape(value)));
                 }
             }
 
-            Kind::TypedStructured { components, .. } => {
+            Kind::TypedStructured { types, components } => {
                 for (instance, table) in tables(item).into_iter().enumerate() {
                     let original = originals.get(instance);
                     let parts = read_components(table, components, original);
@@ -528,7 +511,7 @@ impl Field {
                     }
 
                     let value = join_components(&parts);
-                    lines.push(self.line(original, Some(read_type(table)), &value));
+                    lines.push(self.line(original, shown(types, table), &value));
                 }
             }
         }
@@ -593,6 +576,13 @@ fn section_header(prefix: Option<&str>, key: &str) -> String {
     }
 }
 
+/// The types a TOML table writes, or `None` for a property whose projection
+/// lists no type at all (`PHOTO`) and whose own ones are therefore not the
+/// document's to clear.
+fn shown<'t>(types: &[&str], table: &'t dyn TableLike) -> Option<&'t str> {
+    (!types.is_empty()).then(|| read_type(table))
+}
+
 /// Push a `type =` line with its accepted-types hint, when the property has a
 /// common type set.
 fn type_line(lines: &mut Vec<Line>, value: &str, types: &[&str]) {
@@ -612,12 +602,12 @@ fn type_line(lines: &mut Vec<Line>, value: &str, types: &[&str]) {
 fn component_lines(
     components: &[Component],
     values: &[String],
-    version: VCardVersion,
+    version: VcardVersion,
 ) -> Vec<Line> {
     components
         .iter()
         .enumerate()
-        .filter(|(_, component)| !component.2 || version != VCardVersion::V4_0)
+        .filter(|(_, component)| !component.2 || version != VcardVersion::V4_0)
         .map(|(index, (name, hint, deprecated))| {
             let value = values.get(index).map(String::as_str).unwrap_or_default();
             let hint = if *deprecated {

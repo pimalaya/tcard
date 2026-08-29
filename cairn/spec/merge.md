@@ -6,10 +6,12 @@ status: current
 
 # Merge
 
-Reconciling two divergent cards is a verb of its own beside template and edit, because the thing tCard is for is putting a vCard in front of a person, and a merge is exactly the moment where a card needs a person. The rules here are about what the document says and what it refuses; the projection it is written in belongs to template, and the byte-preserving fold back belongs to edit.
+Reconciling two divergent cards is a verb of its own beside template, because the thing tCard is for is putting a vCard in front of a person, and a merge is exactly the moment where a card needs a person. The rules here are about what the document says and what it refuses; the projection it is written in and the byte-preserving fold back both belong to template.
 
 ### Requirement: Merging is a verb over three files
 `merge` SHALL take a base, a local and a remote card as paths, plus the path to write, run the three-way merge in process, and project the result as TOML for editing. It SHALL write the output path only once the edited document parses, and SHALL leave it untouched otherwise.
+
+The capability SHALL be built unconditionally. vcard-rs is a plain dependency of every configuration, so gating the merge changes nothing about the crate set and a cargo feature has nothing left to buy.
 
 Taking the three rather than a pre-merged body with markers is what keeps the document a card. Line markers are how a line-oriented merge shows an unresolved region, and a vCard is not lines: a marker in one would break every parser downstream, including this one. The merge is a pure function over bodies already at hand, so running it here rather than receiving its output costs nothing and invents no format.
 
@@ -17,6 +19,16 @@ Taking the three rather than a pre-merged body with markers is what keeps the do
 - GIVEN a merge whose document still holds an undecided collision
 - WHEN the editor exits
 - THEN the output path is not written
+
+### Requirement: A read failure names the side it came from
+Where one of a merge's three cards does not parse, the refusal SHALL name the side it was given as, beside what the reader made of it.
+
+A merge is the one verb reading more than one body, and its three paths are the user's. A refusal naming none of them says only that the merge failed, leaving the reader to open all three to find out which.
+
+#### Scenario: An unreadable remote card
+- GIVEN a merge whose remote card is not a vCard
+- WHEN it is projected
+- THEN it is refused, naming the remote side
 
 ### Requirement: A collision is duplicate keys
 A field both sides changed SHALL be written once per surviving side, each line naming its side, with the ancestor above them as a comment. Resolving SHALL be deleting the lines that are not wanted, or replacing all of them with a value of the user's own.
@@ -52,6 +64,16 @@ A collision on a key the document does write SHALL NOT be demoted to a header no
 - WHEN the document is projected
 - THEN `organization` is written once per side, as an array, and the document refuses to apply
 
+### Requirement: A union is said in the header
+Where both sides edited the items of one multi-valued property or one list parameter, the document SHALL say so in its header comment, stating that the items of both were kept. It SHALL NOT contest them.
+
+The items of such a value merge as a set, RFC 6350 giving them no order, so both sides' additions and removals all apply and nothing collides. That is the right outcome: two sides each adding a nickname should keep both, and putting them to a reader would throw one away for no reason. The silence is what is wrong, since the merged value is then one neither side wrote and nobody was told it was assembled.
+
+#### Scenario: Both sides rewrite a list
+- GIVEN a base holding `NICKNAME:a,b`, a local holding `NICKNAME:c,d` and a remote holding `NICKNAME:e,f`
+- WHEN they are merged
+- THEN the card holds all four, the header says the items of both were kept, and the document applies as it stands
+
 ### Requirement: A structured collision stays inside its table
 A collision inside a structured value SHALL be rendered as duplicate keys within the single table that projects the instance, and SHALL NOT be rendered as a repeated array-of-tables block. Repeating such a header is valid TOML and would produce a second instance rather than a parse error, so the forcing that makes the whole convention safe would silently vanish exactly where the value is most complex.
 
@@ -83,3 +105,13 @@ A document that contests a key in a syntax it uses nowhere else asks the reader 
 - GIVEN two sides setting a different `BDAY`
 - WHEN the document is projected
 - THEN each side's line reads `birthday = 1997-04-15`, not a quoted basic string
+
+### Requirement: A header note wraps at the document's column
+A note written into the document header SHALL wrap at the same column the header itself uses, its `#` prefix included, and a continuation line SHALL be indented under the text of its bullet rather than under the bullet mark.
+
+The header is prose a person reads before anything else, and a line running past the width the rest of the document keeps is the one part of the document that can leave the screen.
+
+#### Scenario: A note longer than the column
+- GIVEN a note whose text passes the wrapping column
+- WHEN the document is projected
+- THEN it is written over two comment lines, the second indented under the first line's text

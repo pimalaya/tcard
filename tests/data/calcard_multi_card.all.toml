@@ -14,7 +14,7 @@ title = ""
 role = ""
 categories = []
 language = []			# en, fr
-birthday = "1963-09"		# 1996-04-15, or "--0415" without a year
+birthday = 1963-09-21		# 1996-04-15, or "--0415" without a year
 anniversary = ""		# 2009-08-08
 geo = ""			# geo:37.78,-122.40
 timezone = ""			# America/New_York
@@ -36,14 +36,14 @@ type = "INTERNET"		# home, work
 value = "deriks@Microsoft.com"	# email address
 
 [[card.phone]]
-type = "work,MSG"		# home, work, cell, fax, voice, video, pager, text, textphone
+type = "WORK,MSG"		# home, work, cell, fax, voice, video, pager, text, textphone
 value = "+1-425-936-5522"	# +1-555-0100
 [[card.phone]]
-type = "work,fax"		# home, work, cell, fax, voice, video, pager, text, textphone
+type = "WORK,FAX"		# home, work, cell, fax, voice, video, pager, text, textphone
 value = "+1-425-936-7329"	# +1-555-0100
 
 [[card.address]]
-type = "work,POSTAL,PARCEL"	# home, work
+type = "WORK,POSTAL,PARCEL"	# home, work
 pobox = ""			# deprecated
 ext = ""			# deprecated
 street = "One Microsoft Way"
@@ -94,11 +94,11 @@ type = "INTERNET"		# home, work
 value = "ganguly@acm.org"	# email address
 
 [[card.phone]]
-type = "work,MSG"		# home, work, cell, fax, voice, video, pager, text, textphone
+type = "WORK,MSG"		# home, work, cell, fax, voice, video, pager, text, textphone
 value = "+1-734-542-5955"	# +1-555-0100
 
 [[card.address]]
-type = "work,POSTAL,PARCEL"	# home, work
+type = "WORK,POSTAL,PARCEL"	# home, work
 pobox = ""			# deprecated
 ext = "Suite 101"		# deprecated
 street = "38777 West Six Mile Road"

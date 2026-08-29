@@ -64,12 +64,12 @@ This repository ships two interfaces:
 ## Features
 
 - Partial `no_std` support
-- vCard from/to TOML **projection**, backed by [calcard](https://crates.io/crates/calcard) (RFC 6350).
+- vCard from/to TOML **projection**, backed by [vcard-rs](https://crates.io/crates/vcard-rs) (vCard 2.1, RFC 2426, RFC 6350).
 - **Friendly** keys and values: cryptic property names become readable TOML keys.
 - **Structured** names and addresses: `N` and `ADR` expand into named components; typed properties (`email`, `tel`) list their accepted `TYPE` values.
 - **Discoverable** properties: prints all available properties with empty values by default, fill the ones you need.
-- **Minimal, lossless diffs**: `apply` patches the original text through a format-preserving editor, re-rendering only the lines you changed.
-- **Three-way merge**: `merge` reconciles two divergent cards against their base, backed by [vcard-rs](https://crates.io/crates/vcard-rs), and writes what it could not decide as duplicate TOML keys.
+- **Minimal, lossless diffs**: `apply` patches the original text, re-rendering only the lines you changed.
+- **Three-way merge**: `merge` reconciles two divergent cards against their base and writes what it could not decide as duplicate TOML keys.
 
 ## Installation
 
@@ -113,7 +113,7 @@ To use `tcard` as a library, add it to your `Cargo.toml`:
 tcard = "0.0.1"
 ```
 
-The library has no default features: it is a slim `no_std` (plus `alloc`) build with no clap, no editor integration, just the `project` / `apply` projection over a calcard `VCard`. The CLI lives behind the opt-in `cli` feature (enabled above with `cargo install --features cli`), and the three-way merge behind `merge`, which the CLI pulls in.
+The library has no default features: it is a slim `no_std` (plus `alloc`) build with no clap and no editor integration, just the `project` / `apply` projection over a parsed card and the three-way merge over it. The CLI lives behind the opt-in `cli` feature (enabled above with `cargo install --features cli`).
 
 ### Nix
 
@@ -149,8 +149,8 @@ use tcard::{template, vcard};
 let input = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:Ada Lovelace\r\nEND:VCARD\r\n";
 
 // A file may hold several cards; project them all.
-let cards = vcard::parse_all(input).unwrap();
-let version = cards[0].version().unwrap();
+let cards = vcard::parse(input).unwrap();
+let version = cards.version().unwrap();
 
 // Emit the prefilled scaffold: a single card flattens at the root, two or
 // more become [[card]] blocks.

@@ -20,7 +20,7 @@ note = "THIS SOFTWARE IS PROVIDED BY GEORGE EL-HADDAD ''AS IS'' AND ANY EXPRESS 
 [name]	# required
 family = "Doe"
 given = "John"
-additional = "Richter"
+additional = "Richter,James"
 prefixes = "Mr."
 suffixes = "Sr."
 
@@ -29,40 +29,40 @@ sex = ""	# F, M, O, N, U
 identity = ""
 
 [[email]]
-type = ""			# home, work
+type = "PREF,INTERNET"		# home, work
 value = "john.doe@ibm.cm"	# email address
 
 [[phone]]
-type = "work,voice"		# home, work, cell, fax, voice, video, pager, text, textphone
+type = "WORK,VOICE"		# home, work, cell, fax, voice, video, pager, text, textphone
 value = "(905) 555-1234"	# +1-555-0100
 [[phone]]
-type = "home,voice"		# home, work, cell, fax, voice, video, pager, text, textphone
+type = "HOME,VOICE"		# home, work, cell, fax, voice, video, pager, text, textphone
 value = "(905) 666-1234"	# +1-555-0100
 
 [[address]]
-type = "work"	# home, work
-pobox = ""	# deprecated
-ext = ""	# deprecated
+type = "WORK,PREF"	# home, work
+pobox = ""		# deprecated
+ext = ""		# deprecated
 street = "Cresent moon drive"
 locality = "Albaney"
 region = "New York"
 code = "12345"
 country = "United States of America"
 [[address]]
-type = "home"	# home, work
-pobox = ""	# deprecated
-ext = ""	# deprecated
-street = "Silicon Alley 5"
+type = "HOME"		# home, work
+pobox = ""		# deprecated
+ext = ""		# deprecated
+street = "Silicon Alley 5,"
 locality = "New York"
 region = "New York"
 code = "12345"
 country = "United States of America"
 
 [[photo]]
-value = ""	# file:// or https://
+value = "/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAaACADASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDzS20gtj5a1R4feMqJYnQlQwDAjII4IrubPQTx8ldNYacfs6213F59sM7R0eL1Kn+nT+dZyk1sQ2zyUaBkfc/SpB4ZOPuc/Su61vSo5tTfSrZySEDKWQgyFgSowSBgEDdz7Z71S8ITNB4luPD2szQvdvM4t/KYsoGNwUNgZwAecCpVWLfKNO56ba2sSqpIGD0Na1vDBxwKwYifU1dhJx1NJq5m1cw/Enw9Gt6ydRbXLmNljMcUW0FYgSCcYI9KXwX4EXwz4hm1STUhdM8RiCtGM4JByWz7DpXQ72/vH86idm/vH86ShZ3uNXtY/9k="	# file:// or https://
 
 [[url]]
-type = "work"			# home, work
+type = "WORK"			# home, work
 value = "http://www.ibm.com"	# https://example.com
 
 [[messaging]]

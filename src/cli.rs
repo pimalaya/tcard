@@ -1,4 +1,7 @@
-//! The `tcard` binary CLI.
+//! # Command-line interface
+//!
+//! The three verbs the `tcard` binary offers, and how each resolves its
+//! source.
 //!
 //! - `template [SOURCE]`: print the TOML scaffold, blank or prefilled from a
 //!   vCard. Always emits TOML.
@@ -12,7 +15,7 @@
 //! it starts from a blank template. The TOML is an editing affordance; the only
 //! path back to a vCard is `edit`, where the original is still in hand.
 
-use alloc::{format, string::String, vec::Vec};
+use alloc::{format, string::String};
 use std::{
     fs,
     io::{Read, Write, stdin, stdout},
@@ -20,7 +23,6 @@ use std::{
 };
 
 use anyhow::{Context, Result, bail};
-use calcard::vcard::{VCard, VCardVersion};
 use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
 use log::debug;
 use pimalaya_cli::{
@@ -34,10 +36,11 @@ use pimalaya_cli::{
     prompt,
 };
 use uuid::Uuid;
+use vcard::version::VcardVersion;
 
 use crate::{
     error::{Result as TcardResult, TcardError},
-    merge, template, vcard,
+    merge, template,
 };
 
 /// Root CLI parser.
@@ -98,7 +101,8 @@ pub struct TemplateCommand {
 
 impl TemplateCommand {
     pub fn execute(self, _printer: &mut impl Printer) -> Result<()> {
-        let (cards, version, _) = load(&self.source, &self.version)?;
+        let (src, version) = load(&self.source, &self.version)?;
+        let cards = crate::vcard::parse(&src)?;
         let toml = template::project(&cards, version);
         write_out(self.output.as_deref(), toml.as_bytes())
     }
@@ -119,7 +123,8 @@ pub struct EditCommand {
 
 impl EditCommand {
     pub fn execute(self, printer: &mut impl Printer) -> Result<()> {
-        let (cards, version, src) = load(&self.source, &self.version)?;
+        let (src, version) = load(&self.source, &self.version)?;
+        let cards = crate::vcard::parse(&src)?;
         let scaffold = template::project(&cards, version);
 
         let vcard = edit_toml(printer, &scaffold, |edited| template::apply(&src, edited))?;
@@ -287,43 +292,38 @@ pub enum CardVersion {
     V4_0,
 }
 
-impl From<CardVersion> for VCardVersion {
+impl From<CardVersion> for VcardVersion {
     fn from(version: CardVersion) -> Self {
         match version {
-            CardVersion::V2_1 => VCardVersion::V2_1,
-            CardVersion::V3_0 => VCardVersion::V3_0,
-            CardVersion::V4_0 => VCardVersion::V4_0,
+            CardVersion::V2_1 => VcardVersion::V2_1,
+            CardVersion::V3_0 => VcardVersion::V3_0,
+            CardVersion::V4_0 => VcardVersion::V4_0,
         }
     }
 }
 
-/// Load every source vCard with the raw text and resolved version: the
-/// first card's own version when present, else the requested one. The text
-/// is returned so [`template::apply`] can preserve every untouched byte.
-fn load(source: &SourceArg, version: &VersionArg) -> Result<(Vec<VCard>, VCardVersion, String)> {
-    let requested: VCardVersion = version.version.into();
+/// Load the source vCard text and the version to read it at: the first card's
+/// own when it declares one, else the requested one. The text is what the
+/// verbs parse and patch, so every untouched byte survives.
+fn load(source: &SourceArg, version: &VersionArg) -> Result<(String, VcardVersion)> {
+    let requested: VcardVersion = version.version.into();
 
-    match source.resolve()? {
-        Some(text) => {
-            let cards = vcard::parse_all(&text)?;
-            let version = cards
-                .first()
-                .and_then(|card| card.version())
-                .unwrap_or(requested);
-            Ok((cards, version, text))
-        }
+    let text = match source.resolve()? {
+        Some(text) => text,
         None => {
             // A new card is seeded with a fresh UID so the contact has
             // a stable identifier from the start.
             debug!("seeding a new card with a fresh UID");
-            let text = format!(
-                "BEGIN:VCARD\r\nVERSION:{requested}\r\nUID:urn:uuid:{}\r\nEND:VCARD\r\n",
+            format!(
+                "BEGIN:VCARD\r\nVERSION:{}\r\nUID:urn:uuid:{}\r\nEND:VCARD\r\n",
+                &*requested,
                 Uuid::new_v4()
-            );
-            let cards = vcard::parse_all(&text)?;
-            Ok((cards, requested, text))
+            )
         }
-    }
+    };
+
+    let version = crate::vcard::parse(&text)?.version().unwrap_or(requested);
+    Ok((text, version))
 }
 
 /// Read a card from a path, the form the three inputs of a merge take.
