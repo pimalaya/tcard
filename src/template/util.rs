@@ -13,7 +13,7 @@ use calcard::{
 };
 use toml_edit::{Array, Item, TableLike, Value};
 
-use crate::template::datetime::vcard_date;
+use crate::template::{datetime::vcard_date, patch};
 
 /// Render a string as a quoted, escaped TOML scalar.
 pub fn toml_str(value: &str) -> String {
@@ -135,22 +135,33 @@ fn param_text(value: &VCardParameterValue) -> Option<String> {
     }
 }
 
-/// Read named components from a TOML table, escaped and in order; missing
-/// components (including ones hidden from the scaffold) become empty strings,
-/// preserving each positional slot.
+/// Read named components from a TOML table, escaped and in order, each
+/// positional slot preserved.
+///
+/// A component the document does not write is one the version hides
+/// (`pobox`, `ext` in vCard 4.0), so it is taken from the line the value came
+/// from: hiding a component from the form is not licence to drop it.
 pub fn read_components(
     table: &dyn TableLike,
     components: &[(&str, Option<&str>, bool)],
+    original: Option<&String>,
 ) -> Vec<String> {
+    let held = original
+        .map(|line| patch::items(patch::value(line), ';'))
+        .unwrap_or_default();
+
     components
         .iter()
-        .map(|(name, _, _)| {
-            table
-                .get(name)
-                .and_then(|item| item.as_str())
-                .map(escape)
-                .unwrap_or_default()
-        })
+        .enumerate()
+        .map(
+            |(index, (name, _, _))| match table.get(name).and_then(|item| item.as_str()) {
+                Some(value) => escape(value),
+                None => held
+                    .get(index)
+                    .map(|part| (*part).to_owned())
+                    .unwrap_or_default(),
+            },
+        )
         .collect()
 }
 
@@ -163,14 +174,10 @@ pub fn join_components(parts: &[String]) -> String {
     parts[..last].join(";")
 }
 
-/// Append `;TYPE=<value>` to `line` when the table carries a non-empty `type`.
-pub fn push_type(line: &mut String, table: &dyn TableLike) {
-    if let Some(ty) = table
+/// The `type` a TOML table writes, empty when it writes none.
+pub fn read_type(table: &dyn TableLike) -> &str {
+    table
         .get("type")
         .and_then(|item| item.as_str())
-        .filter(|ty| !ty.is_empty())
-    {
-        line.push_str(";TYPE=");
-        line.push_str(ty);
-    }
+        .unwrap_or_default()
 }

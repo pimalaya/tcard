@@ -23,9 +23,10 @@
 //! to that table, so the scalar/list keys lead and the sectioned properties
 //! (`N`, `EMAIL`, `ADR`, ...) follow.
 
-mod datetime;
+pub(crate) mod datetime;
 mod line;
 pub(crate) mod model;
+mod patch;
 pub(crate) mod util;
 
 use alloc::{
@@ -180,9 +181,18 @@ pub fn apply(original_src: &str, edited_toml: &str) -> Result<String> {
 }
 
 /// Rewrite one card's fields from its TOML table, with a minimal diff.
+///
+/// Each field is folded onto the lines the card already holds for it, so a
+/// parameter or a component the document does not write survives.
 fn apply_card(component: &mut Component, table: &dyn TableLike) {
     for field in FIELDS {
-        component.set_all(field.name, &field.content_lines(table));
+        let originals: Vec<String> = component
+            .get_all(field.name)
+            .into_iter()
+            .map(ToString::to_string)
+            .collect();
+
+        component.set_all(field.name, &field.content_lines(table, &originals));
     }
 }
 
@@ -203,7 +213,7 @@ fn entries_for<'a>(card: Option<&'a VCard>, field: &Field) -> Vec<&'a VCardEntry
 fn card_has_content(table: &dyn TableLike) -> bool {
     FIELDS
         .iter()
-        .any(|field| !field.content_lines(table).is_empty())
+        .any(|field| !field.content_lines(table, &[]).is_empty())
 }
 
 #[cfg(test)]

@@ -39,6 +39,9 @@ path = "src/lib.rs"
 [build-dependencies]
 pimalaya-cli = { version = "0.2", default-features = false, features = ["build"], optional = true }
 
+[dev-dependencies]
+proptest = "1"
+
 [dependencies]
 anyhow = { version = "1", optional = true }
 calcard = "0.3"
@@ -50,3 +53,6 @@ thiserror = { version = "2", default-features = false }
 toml_edit = "0.25"
 uuid = { version = "1", features = ["v4"], optional = true }
 vcard-rs = { version = "0.2", default-features = false, features = ["parser"], optional = true }
+
+[patch.crates-io]
+vcard-rs.git = "https://github.com/pimalaya/vcard"

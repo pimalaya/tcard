@@ -73,7 +73,8 @@ impl Parser {
             }
 
             let item = match property_name(&logical.content) {
-                Some(name) => Item::Property(Property {
+                Some((group, name)) => Item::Property(Property {
+                    group,
                     name,
                     logical: logical.content.clone(),
                     raw: logical.raw.clone(),
@@ -141,17 +142,25 @@ fn physical_lines(src: &str) -> Vec<(&str, &str)> {
     lines
 }
 
-/// The property name of a content line (chars up to the first `;` or `:`),
-/// uppercased; `None` for blank or nameless lines.
-fn property_name(content: &str) -> Option<String> {
+/// The group prefix and the name of a content line (chars up to the first
+/// `;` or `:`); `None` for a blank or nameless line.
+///
+/// The group is kept as written, being part of the line's own bytes, while
+/// the name is uppercased, vCard matching property names case-insensitively.
+fn property_name(content: &str) -> Option<(Option<String>, String)> {
     let end = content.find([';', ':'])?;
-    let name = &content[..end];
+    let full = &content[..end];
+
+    let (group, name) = match full.rfind('.') {
+        Some(dot) => (Some(full[..=dot].to_owned()), &full[dot + 1..]),
+        None => (None, full),
+    };
 
     if name.is_empty() {
         return None;
     }
 
-    Some(name.to_uppercase())
+    Some((group, name.to_uppercase()))
 }
 
 /// The component type of a `BEGIN:<type>` line, uppercased.
@@ -166,7 +175,7 @@ fn end_name(content: &str) -> Option<String> {
 
 /// The type a `BEGIN`/`END` marker names (`marker` is `"BEGIN"`/`"END"`).
 fn component_name(content: &str, marker: &str) -> Option<String> {
-    if property_name(content)? != marker {
+    if property_name(content)?.1 != marker {
         return None;
     }
 

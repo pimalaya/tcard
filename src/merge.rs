@@ -41,6 +41,7 @@ use crate::{
     error::{Result, TcardError},
     template::{
         self,
+        datetime::toml_datetime,
         model::{Component, FIELDS, Field, Kind},
         util::{toml_array, toml_str},
     },
@@ -119,6 +120,10 @@ fn undecided(err: TcardError, edited: &str) -> TcardError {
 /// Decorate a projected document with what the merge could not settle on its
 /// own: an undecided collision replaces the line it contests, everything else
 /// is said in the header comment.
+///
+/// A key the document writes once is contested once, however many of its
+/// parts the report reported, so a further collision on it is neither a
+/// second choice nor a note.
 fn decorate(
     toml: String,
     base: &VcardCst<'_>,
@@ -127,16 +132,28 @@ fn decorate(
 ) -> String {
     let mut lines: Vec<String> = toml.lines().map(str::to_owned).collect();
     let mut choices: Vec<(usize, Choice)> = Vec::new();
+    let mut contested: Vec<(&str, usize, &str)> = Vec::new();
     let mut notes: Vec<String> = Vec::new();
 
     for conflict in &report.conflicts {
-        let contested = choice(conflict, escaper).and_then(|choice| {
+        let at = path(&conflict.left);
+        let choice = choice(base, report, conflict, escaper);
+        let key = |choice: &Choice| (at.name.as_ref(), at.index, choice.key);
+        let again = choice
+            .as_ref()
+            .is_some_and(|choice| contested.contains(&key(choice)));
+
+        let contest = choice.filter(|_| !again).and_then(|choice| {
             let taken: Vec<usize> = choices.iter().map(|(at, _)| *at).collect();
             locate(&lines, &choice, &taken).map(|at| (at, choice))
         });
 
-        match contested {
-            Some(contested) => choices.push(contested),
+        match contest {
+            Some((line, choice)) => {
+                contested.push(key(&choice));
+                choices.push((line, choice));
+            }
+            None if again => {}
             None => push_note(&mut notes, note(conflict)),
         }
 
@@ -167,6 +184,8 @@ fn decorate(
 struct Choice {
     /// The field the contested key belongs to, which says where to look for it.
     field: &'static Field,
+    /// The instance the report indexes, which says which block to look in.
+    instance: usize,
     /// The contested key, a bare key or one inside the instance's table.
     key: &'static str,
     /// The ancestor value, as the right-hand side the projection would write.
@@ -180,8 +199,19 @@ struct Choice {
 /// The collision as a decidable choice on one projected key, or `None` when
 /// the merge already decided it (a removal against an update) or when the
 /// projection holds no key to contest.
-fn choice(conflict: &VcardMergeConflict<'_>, escaper: VcardEscaper) -> Option<Choice> {
-    let field = field_of(&path(&conflict.left).name)?;
+fn choice(
+    base: &VcardCst<'_>,
+    report: &VcardMergeReport<'_>,
+    conflict: &VcardMergeConflict<'_>,
+    escaper: VcardEscaper,
+) -> Option<Choice> {
+    let at = path(&conflict.left);
+    let field = field_of(&at.name)?;
+
+    if let Some(choice) = list_choice(base, report, conflict, field) {
+        return Some(choice);
+    }
+
     let (key, base, local) = addressed(field, &conflict.left, escaper)?;
     let (other, _, remote) = addressed(field, &conflict.right, escaper)?;
 
@@ -191,10 +221,86 @@ fn choice(conflict: &VcardMergeConflict<'_>, escaper: VcardEscaper) -> Option<Ch
 
     Some(Choice {
         field,
+        instance: at.index,
         key,
         base,
         local,
         remote,
+    })
+}
+
+/// The collision on a list field the merge reported one component at a time
+/// (`ORG`), as one choice on the whole array; `None` for any other field or
+/// any other pair of actions.
+///
+/// The document writes such a field as a single key, so the reader can decide
+/// it. Reporting each component apart and then finding no key for it would
+/// demote a collision in plain sight to a note saying a part they cannot see
+/// was contested.
+fn list_choice(
+    base: &VcardCst<'_>,
+    report: &VcardMergeReport<'_>,
+    conflict: &VcardMergeConflict<'_>,
+    field: &'static Field,
+) -> Option<Choice> {
+    if !matches!(field.kind, Kind::List { .. })
+        || !matches!(
+            (&conflict.left, &conflict.right),
+            (
+                VcardMergeAction::ValueComponentChanged { .. },
+                VcardMergeAction::ValueComponentChanged { .. },
+            ),
+        )
+    {
+        return None;
+    }
+
+    let at = path(&conflict.left);
+    let line = base
+        .props
+        .iter()
+        .filter(|line| line.name.get().eq_ignore_ascii_case(&at.name))
+        .nth(at.index)?;
+
+    let ancestor: Vec<String> = (0..line.value.component_count())
+        .map(|component| line.value.decode_at(component).join(","))
+        .collect();
+
+    let moved = |actions: &[VcardMergeAction<'_>]| {
+        let mut components = ancestor.clone();
+
+        for action in actions {
+            if let VcardMergeAction::ValueComponentChanged {
+                at: on,
+                component,
+                new,
+                ..
+            } = action
+                && on == at
+            {
+                if *component >= components.len() {
+                    components.resize(component + 1, String::new());
+                }
+                components[*component] = new.join(",");
+            }
+        }
+
+        components
+    };
+
+    let (local, remote) = (moved(&report.left), moved(&report.right));
+
+    if local == remote {
+        return None;
+    }
+
+    Some(Choice {
+        field,
+        instance: at.index,
+        key: field.key,
+        base: toml_array(&ancestor),
+        local: toml_array(&local),
+        remote: toml_array(&remote),
     })
 }
 
@@ -309,13 +415,26 @@ fn type_values<'p, 'a>(param: &'p VcardParam<'a>) -> Option<&'p [Cow<'a, str>]> 
 }
 
 /// A whole value as the right-hand side the projection writes for this field:
-/// an array for a list field, a quoted string everywhere else.
+/// an array for a list field, a native date for a date field, a quoted string
+/// everywhere else.
 fn value_rhs(field: &Field, value: &VcardValue<'_>, escaper: VcardEscaper) -> String {
     let node = value.encode(escaper);
 
     match field.kind {
         Kind::List { .. } => toml_array(&node.decode_at(0)),
+        Kind::Date => date_rhs(&node.decode_joined_at(0)),
         _ => toml_str(&node.decode_joined_at(0)),
+    }
+}
+
+/// A date as the projection writes one: native where the value is complete,
+/// the quoted RFC 6350 string where it is partial and TOML has no form for
+/// it. Contesting a key in a spelling the document never uses elsewhere
+/// would cost the reader the one moment the projection exists for.
+fn date_rhs(value: &str) -> String {
+    match toml_datetime(value) {
+        Some(native) => native.to_string(),
+        None => toml_str(value),
     }
 }
 
@@ -335,10 +454,16 @@ fn empty_rhs(field: &Field) -> String {
 }
 
 /// The line a choice contests in the projected document: a bare key at the
-/// document root, the key inside the single table of a structured property,
-/// or the key inside the instance table where the merge kept the local value.
-/// Lines already contested by another choice are skipped, and a key the
-/// version hides (a deprecated component) is not there to be found.
+/// document root, else the key inside the block of the instance the report
+/// indexes. Lines already contested by another choice are skipped, and a key
+/// the version hides (a deprecated component) is not there to be found.
+///
+/// That index is the instance's position in the *base* card, and the document
+/// projects the merged one, so the two agree only while the pairing behind
+/// them was positional. The block it names is therefore taken only when it
+/// holds the value the merge kept, which is the local one wherever a choice
+/// is rendered at all; failing that the search falls back to the first block
+/// holding that value, then to the first block holding the key.
 fn locate(lines: &[String], choice: &Choice, taken: &[usize]) -> Option<usize> {
     let headers = match choice.field.kind {
         // Bare keys lead the document, before the first section header.
@@ -350,6 +475,15 @@ fn locate(lines: &[String], choice: &Choice, taken: &[usize]) -> Option<usize> {
             headers(lines, &format!("[[{}]]", choice.field.key))
         }
     };
+
+    let indexed = headers
+        .get(choice.instance)
+        .and_then(|header| find_key(lines, header + 1, choice.key, taken))
+        .filter(|at| rhs(&lines[*at], choice.key) == Some(choice.local.as_str()));
+
+    if indexed.is_some() {
+        return indexed;
+    }
 
     let mut first = None;
 

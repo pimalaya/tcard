@@ -225,7 +225,7 @@ No. `apply` patches the original text through a format-preserving editor (the vC
 
 ### What happens to properties tcard does not list?
 
-They are kept verbatim. The scaffold only surfaces the modeled vocabulary, but `apply` carries every other property (custom `X-*`, Apple `item1.*` groups, vendor extensions) straight from the original card into the result.
+They are kept verbatim. The scaffold only surfaces the modeled vocabulary, but `apply` carries every other property (custom `X-*`, vendor extensions) straight from the original card into the result. The same holds inside a property it does list: a line is patched rather than rebuilt, so a parameter the form does not show (`PREF`, `PID`, `LANGUAGE`) and a component it hides (`ADR`'s `pobox` in vCard 4.0) come back as they were, and a property written with a group (Apple's `item1.EMAIL`) is rewritten in place, group and all.
 
 ### How do I debug the CLI?
 

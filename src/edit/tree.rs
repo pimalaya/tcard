@@ -107,16 +107,19 @@ impl Component {
         self.items.properties_mut(name)
     }
 
-    /// The logical content lines of this component's own direct properties
-    /// matching `name`.
+    /// The content lines of this component's own direct properties matching
+    /// `name`, each without its group prefix, as [`Component::set_all`] takes
+    /// them back.
     pub fn get_all(&self, name: &str) -> Vec<&str> {
-        self.properties(name).map(Property::logical).collect()
+        self.properties(name).map(Property::ungrouped).collect()
     }
 
     /// Make this component's direct properties named `name` exactly equal
     /// `lines` (content lines without an end of line), with a minimal diff:
     /// unchanged lines keep their bytes, surplus is dropped, missing lines
     /// are inserted after the last property. `lines == []` removes them all.
+    /// A reused line keeps the group it carried, so a grouped property is
+    /// rewritten in place rather than doubled by a group-less copy.
     pub fn set_all(&mut self, name: &str, lines: &[String]) {
         let eol = eol_of(&self.begin_raw).to_owned();
         self.items.set_properties(name, lines, &eol);
@@ -137,6 +140,7 @@ impl Component {
 /// A single content line (`NAME;PARAMS:VALUE`): unfolded for matching but
 /// kept byte-for-byte (folding and end of line included) for output.
 pub struct Property {
+    pub(crate) group: Option<String>,
     pub(crate) name: String,
     pub(crate) logical: String,
     pub(crate) raw: String,
@@ -148,13 +152,28 @@ impl Property {
         &self.logical
     }
 
-    /// Replace this property's content line, re-rendering only when it
-    /// differs so an unchanged value keeps its original bytes.
+    /// The same line without its group prefix (`item1.EMAIL:a` gives
+    /// `EMAIL:a`), which is the form [`Property::set`] takes.
+    pub fn ungrouped(&self) -> &str {
+        &self.logical[self.group.as_ref().map_or(0, String::len)..]
+    }
+
+    /// Replace this property's content line, keeping its group and
+    /// re-rendering only on a change so an unchanged value keeps its bytes.
+    ///
+    /// The group is the caller's only through the line it belongs to: a
+    /// property is addressed by its bare name, so a line written back
+    /// carries the group of the line it replaces.
     pub fn set(&mut self, line: &str) {
+        let line = match &self.group {
+            Some(group) => format!("{group}{line}"),
+            None => line.to_owned(),
+        };
+
         if self.logical != line {
             let eol = eol_of(&self.raw).to_owned();
-            self.logical = line.to_owned();
-            self.raw = render(line, &eol);
+            self.raw = render(&line, &eol);
+            self.logical = line;
         }
     }
 }
@@ -266,11 +285,8 @@ impl Nodes {
         // Reuse existing slots positionally, re-rendering only on change.
         let reuse = positions.len().min(lines.len());
         for slot in 0..reuse {
-            if let Item::Property(property) = &mut self.0[positions[slot]]
-                && property.logical != lines[slot]
-            {
-                property.logical = lines[slot].clone();
-                property.raw = render(&lines[slot], eol);
+            if let Item::Property(property) = &mut self.0[positions[slot]] {
+                property.set(&lines[slot]);
             }
         }
 
@@ -283,6 +299,7 @@ impl Nodes {
             let at = self.insertion_point();
             let extras = lines[positions.len()..].iter().map(|line| {
                 Item::Property(Property {
+                    group: None,
                     name: upper.clone(),
                     logical: line.clone(),
                     raw: render(line, eol),
@@ -451,6 +468,25 @@ mod tests {
 
         let three = applied(&one, "EMAIL", &["EMAIL:a@x", "EMAIL:b@x", "EMAIL:c@x"]);
         assert_eq!(three.matches("EMAIL").count(), 3);
+    }
+
+    #[test]
+    fn set_all_rewrites_a_grouped_property_in_place() {
+        let src = "BEGIN:VCARD\r\nitem1.EMAIL:a@x\r\nitem1.X-ABLabel:Work\r\nEND:VCARD\r\n";
+
+        // The group is the line's own, so a property addressed by its bare
+        // name is found, rewritten in place, and never doubled group-less.
+        assert_eq!(applied(src, "EMAIL", &["EMAIL:a@x"]), src);
+        assert_eq!(
+            applied(src, "EMAIL", &["EMAIL:b@x"]),
+            src.replace("a@x", "b@x"),
+        );
+
+        let mut card = Card::parse(src);
+        assert_eq!(
+            card.component_mut("VCARD").unwrap().get_all("EMAIL"),
+            vec!["EMAIL:a@x"]
+        );
     }
 
     #[test]

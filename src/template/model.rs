@@ -1,6 +1,8 @@
 //! The modeled vCard vocabulary: how each property maps to a TOML key and
 //! how it projects and reads back.
 
+use core::slice;
+
 use alloc::{
     borrow::ToOwned,
     format,
@@ -13,11 +15,12 @@ use calcard::vcard::{VCardEntry, VCardValue, VCardVersion};
 use toml_edit::TableLike;
 
 use crate::template::{
-    datetime::{toml_date, toml_date_line, vcard_date},
+    datetime::{toml_date, toml_date_value, vcard_date},
     line::Line,
+    patch,
     util::{
-        entry_components, entry_text, entry_texts, escape, join_components, push_type,
-        read_components, scalar_text, tables, toml_array, toml_str, type_strings,
+        entry_components, entry_text, entry_texts, escape, join_components, read_components,
+        read_type, scalar_text, tables, toml_array, toml_str, type_strings,
     },
 };
 
@@ -436,7 +439,16 @@ impl Field {
     /// `[[card]]` table), without an end of line, skipping empty values.
     /// Empty when the field is absent or blank, so
     /// [`crate::edit::tree::Component::set_all`] removes it.
-    pub fn content_lines(&self, source: &dyn TableLike) -> Vec<String> {
+    ///
+    /// `originals` are the card's own lines for this property, in the order
+    /// the projection showed them. Each line is patched rather than rebuilt,
+    /// so the parameters and the components the document does not write are
+    /// the ones the card already carried.
+    ///
+    /// An empty item is dropped from a `,` list, where it says nothing, and
+    /// kept in a `;` list, where the components are ordered and an empty one
+    /// holds the place of the ones behind it.
+    pub fn content_lines(&self, source: &dyn TableLike, originals: &[String]) -> Vec<String> {
         let Some(item) = source.get(self.key) else {
             return Vec::new();
         };
@@ -446,45 +458,53 @@ impl Field {
         match &self.kind {
             Kind::Scalar => {
                 if let Some(value) = item.as_str().filter(|value| !value.is_empty()) {
-                    lines.push(format!("{}:{}", self.name, escape(value)));
+                    lines.push(self.line(originals.first(), None, &escape(value)));
                 }
             }
 
             Kind::Date => {
                 if let Some(dtm) = item.as_datetime() {
-                    lines.push(toml_date_line(self.name, dtm));
+                    lines.push(self.line(originals.first(), None, &toml_date_value(dtm)));
                 } else if let Some(value) = item.as_str().filter(|value| !value.is_empty()) {
-                    lines.push(format!("{}:{}", self.name, escape(value)));
+                    lines.push(self.line(originals.first(), None, &escape(value)));
                 }
             }
 
             Kind::List { sep } => {
                 if let Some(array) = item.as_array() {
+                    let ordered = *sep == ';';
                     let parts: Vec<String> = array
                         .iter()
                         .filter_map(|value| value.as_str())
-                        .filter(|value| !value.is_empty())
+                        .filter(|value| ordered || !value.is_empty())
                         .map(escape)
                         .collect();
 
-                    if !parts.is_empty() {
-                        lines.push(format!("{}:{}", self.name, parts.join(&sep.to_string())));
+                    let parts = match parts.iter().all(String::is_empty) {
+                        true => Vec::new(),
+                        false => parts,
+                    };
+
+                    for (original, items) in spread(&parts, originals, *sep) {
+                        let value = items.join(&sep.to_string());
+                        lines.push(self.line(original, None, &value));
                     }
                 }
             }
 
             Kind::Structured(components) => {
                 if let Some(table) = item.as_table_like() {
-                    let parts = read_components(table, components);
+                    let original = originals.first();
+                    let parts = read_components(table, components, original);
 
                     if parts.iter().any(|part| !part.is_empty()) {
-                        lines.push(format!("{}:{}", self.name, join_components(&parts)));
+                        lines.push(self.line(original, None, &join_components(&parts)));
                     }
                 }
             }
 
             Kind::Typed { .. } => {
-                for table in tables(item) {
+                for (instance, table) in tables(item).into_iter().enumerate() {
                     let Some(value) = table
                         .get("value")
                         .and_then(|item| item.as_str())
@@ -493,33 +513,75 @@ impl Field {
                         continue;
                     };
 
-                    let mut line = self.name.to_string();
-                    push_type(&mut line, table);
-                    line.push(':');
-                    line.push_str(&escape(value));
-                    lines.push(line);
+                    let original = originals.get(instance);
+                    lines.push(self.line(original, Some(read_type(table)), &escape(value)));
                 }
             }
 
             Kind::TypedStructured { components, .. } => {
-                for table in tables(item) {
-                    let parts = read_components(table, components);
+                for (instance, table) in tables(item).into_iter().enumerate() {
+                    let original = originals.get(instance);
+                    let parts = read_components(table, components, original);
 
                     if !parts.iter().any(|part| !part.is_empty()) {
                         continue;
                     }
 
-                    let mut line = self.name.to_string();
-                    push_type(&mut line, table);
-                    line.push(':');
-                    line.push_str(&join_components(&parts));
-                    lines.push(line);
+                    let value = join_components(&parts);
+                    lines.push(self.line(original, Some(read_type(table)), &value));
                 }
             }
         }
 
         lines
     }
+
+    /// One content line for this field: the value behind the prefix the line
+    /// it came from carried, or behind the bare property name when it is new.
+    fn line(&self, original: Option<&String>, types: Option<&str>, value: &str) -> String {
+        let original = original.map(String::as_str);
+        format!("{}:{value}", patch::rewritten(original, self.name, types))
+    }
+}
+
+/// Spread a field's items over the lines they came from: each original line
+/// keeps as many items as it held and a surplus item opens a line of its
+/// own, so two properties of one name (`LANG;PREF=1:fr` beside
+/// `LANG;PREF=2:en`) never collapse into one.
+///
+/// A `;` separator joins the components of a single property (`ORG`), which
+/// stays one line however many items it holds.
+fn spread<'i, 'o>(
+    items: &'i [String],
+    originals: &'o [String],
+    sep: char,
+) -> Vec<(Option<&'o String>, &'i [String])> {
+    if items.is_empty() {
+        return Vec::new();
+    }
+
+    if sep == ';' {
+        return vec![(originals.first(), items)];
+    }
+
+    let mut out = Vec::new();
+    let mut rest = items;
+
+    for original in originals {
+        if rest.is_empty() {
+            break;
+        }
+
+        let held = patch::items(patch::value(original), sep)
+            .len()
+            .clamp(1, rest.len());
+        let (head, tail) = rest.split_at(held);
+        out.push((Some(original), head));
+        rest = tail;
+    }
+
+    out.extend(rest.iter().map(|item| (None, slice::from_ref(item))));
+    out
 }
 
 /// The TOML header for a section `key` under an optional parent `prefix`:
