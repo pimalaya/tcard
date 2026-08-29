@@ -38,7 +38,10 @@ use vcard::{
     tree::{
         codec::{VcardCodec, mode::VcardEscaper},
         cst::VcardCst,
-        merge::{VcardMergeAction, VcardMergeConflict, VcardMergeReport, VcardPropPath, merge},
+        merge::{
+            VcardMerge, VcardMergeAction, VcardMergeConflict, VcardMergeReport, VcardMergeSide,
+            VcardPropPath,
+        },
     },
     value::VcardValue,
 };
@@ -78,7 +81,13 @@ pub fn project(base: &str, local: &str, remote: &str) -> Result<Merged> {
     let local = read(local, "local")?;
     let remote = read(remote, "remote")?;
 
-    let report = merge(&base, &local, &remote);
+    let report = VcardMerge {
+        base: &base,
+        left: &local,
+        right: &remote,
+        prefer: VcardMergeSide::Left,
+    }
+    .merge();
     debug!("merged with {} collision(s)", report.conflicts.len());
 
     let version = report.merged.version();

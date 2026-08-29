@@ -43,6 +43,43 @@
 //! That is why applying needs the original text and not just the document:
 //! the TOML is an editing affordance, never an interchange format.
 //!
+//! The boundary is that tcard owns the content-line grammar it patches while
+//! vcard-rs owns the card's structure and its bytes. The projection reads
+//! through that same grammar, so what the form shows and what a fold-back
+//! writes agree by construction.
+//!
+//! ## The modelled vocabulary
+//!
+//! A static table in model names every property the form shows. Each entry
+//! decouples the friendly TOML key from the vCard property behind it, so
+//! `address` can read well without `ADR` moving, and carries the requirement,
+//! the inline hint and the kind that drives both directions.
+//!
+//! A kind is one of five. A scalar is one value, a list joins several on a
+//! separator, a structured value expands into named components instead of
+//! bare semicolons, a typed property repeats as sections carrying an optional
+//! `TYPE`, and a typed structured one is both.
+//!
+//! A structured component can be deprecated, which RFC 6350 does to `ADR`'s
+//! post office box and its extended address. Such a component is hidden from
+//! a vCard 4.0 scaffold and flagged in older versions, and on apply it keeps
+//! its positional slot and is written back from the card's own line: hiding a
+//! component is no licence to drop it.
+//!
+//! `UID` and `VERSION` are deliberately absent. They are app-managed, seeded
+//! for a new card and preserved for every other one.
+//!
+//! ## The document's layout
+//!
+//! TOML attributes every bare key after a table or array header to that
+//! table, so the scalar and list fields are written first as one block and
+//! the sectioned properties follow it. That order is the format's rule rather
+//! than a preference.
+//!
+//! Inline hints within a block share one column, reached with tabs a stop
+//! past the widest hinted line, so filling a value shifts the comments as
+//! little as it can.
+//!
 //! ## The merge
 //!
 //! [`merge::project`] reconciles a local and a remote card against the base
@@ -76,6 +113,44 @@
 //! The `cli` feature adds the cli module: the three verbs, how each resolves
 //! its source, and the editor round trip. The binary above it is wiring only,
 //! and says so in its own header.
+//!
+//! ## The golden fixture database
+//!
+//! The tests/data directory is a regression database of real and crafted
+//! cards, checked by tests/fixtures.rs. Each `<name>.<mode>.toml` is the
+//! expected projection of `<name>.vcf`, and the runner also asserts a
+//! byte-exact round trip unless a `<name>.lossy` marker says the source is
+//! not already in the form a fold-back writes.
+//!
+//! The imported cards come from real apps through the ez-vcard test corpus,
+//! covering Gmail, Evolution and MS Outlook 2.1, and through the calcard
+//! parser's own corpus, alongside the RFC 6350 example and an Apple-style
+//! export. Every one of those is lossy; clean and two_cards are crafted to
+//! round trip byte-exact.
+//!
+//! A real-world export is the most valuable case, so adding one is the
+//! fastest way to turn a bug report into a regression test. CONTRIBUTING.md
+//! carries the steps.
+//!
+//! ## Known limitations
+//!
+//! These are deliberate or pending, and they are what the lossy markers
+//! record. Structured components are joined with their trailing empties
+//! dropped, so `N:Doe;John;;;` is re-emitted `N:Doe;John`.
+//!
+//! vcard-rs unfolds a line on parse and keeps no record of where the folds
+//! were, so a card written folded comes back unfolded. The value is intact
+//! and only its layout moves; the sibling ical-rs keeps a wire shape for
+//! exactly this and vcard-rs does not yet.
+//!
+//! A birthday or anniversary is read as the card wrote it and written back in
+//! RFC 6350 basic form, so an extended date comes back basic. A text value is
+//! written back escaped per RFC 6350 section 3.4, so an unescaped comma comes
+//! back escaped and a needless escape comes back without it.
+//!
+//! A line whose `TYPE` the document changed is rewritten with the document's
+//! spelling and its type parameters gathered into one. A line whose types are
+//! unchanged keeps its own bytes, however they were spelled.
 
 extern crate alloc;
 #[cfg(feature = "cli")]

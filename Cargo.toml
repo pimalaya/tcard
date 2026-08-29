@@ -1,8 +1,8 @@
 [package]
 name = "tcard"
-description = "CLI & lib to edit vCards as ergonomic TOML"
+description = "CLI to edit vCards as ergonomic TOML"
 version = "0.0.1"
-authors = ["soywod <clement.douin@posteo.net>"]
+authors = ["Clément DOUIN (soywod) <clement.douin@posteo.net>"]
 edition = "2024"
 rust-version = "1.88"
 license = "MIT OR Apache-2.0"

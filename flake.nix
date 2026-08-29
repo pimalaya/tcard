@@ -1,9 +1,8 @@
 {
-  description = "CLI & lib to edit vCards as ergonomic TOML, written in Rust";
+  description = "CLI to edit vCards as ergonomic TOML";
 
   inputs = {
     nixpkgs = {
-      # until crates.io fix fully backported
       url = "github:nixos/nixpkgs/nixos-25.11";
     };
     fenix = {

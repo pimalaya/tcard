@@ -221,6 +221,7 @@ fn empty(eol: &str) -> VcardCst<'static> {
         begin: Some(built("BEGIN:VCARD", eol)),
         props: Vec::new(),
         end: Some(built("END:VCARD", eol)),
+        trailing: Cow::Borrowed(""),
     }
 }
 

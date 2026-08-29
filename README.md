@@ -1,6 +1,6 @@
 # tCard [![Documentation](https://img.shields.io/docsrs/tcard?style=flat&logo=docs.rs&logoColor=white)](https://docs.rs/tcard/latest/tcard) [![Matrix](https://img.shields.io/badge/chat-%23pimalaya-blue?style=flat&logo=matrix&logoColor=white)](https://matrix.to/#/#pimalaya:matrix.org) [![Mastodon](https://img.shields.io/badge/news-%40pimalaya-blue?style=flat&logo=mastodon&logoColor=white)](https://fosstodon.org/@pimalaya) [![Sponsor](https://img.shields.io/badge/sponsor-pink?style=flat&logo=github-sponsors&logoColor=white)](https://pimalaya.org/sponsor/)
 
-CLI & lib to edit [vCards](https://www.rfc-editor.org/rfc/rfc6350) as ergonomic TOML.
+CLI to edit [vCards](https://www.rfc-editor.org/rfc/rfc6350) as ergonomic TOML
 
 ```sh
 $ tcard edit

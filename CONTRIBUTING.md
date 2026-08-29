@@ -7,9 +7,9 @@ Whether you are a human or an AI agent, read these in order before touching the 
 1. the [Pimalaya README](https://github.com/pimalaya) for what the project is and how its repositories stack;
 2. the [Pimalaya ARCHITECTURE](https://github.com/pimalaya/.github/blob/master/ARCHITECTURE.md) for the conventions every repository shares (layering, `no_std`, modules, errors, code style, licensing, notes for AI agents);
 3. this guide, for how to build, test and submit changes here;
-4. the repo [ARCHITECTURE](./ARCHITECTURE.md) for how tcard in particular is designed.
+4. the [src/lib.rs](./src/lib.rs) header for how tcard in particular is designed.
 
-This document stays operational; the design lives in [ARCHITECTURE.md](./ARCHITECTURE.md).
+This document stays operational; the design lives in the [src/lib.rs](./src/lib.rs) header, which is this crate's architecture document.
 
 ## Development environment
 
@@ -42,12 +42,12 @@ Before opening a PR, make sure `cargo test`, `cargo clippy` and `cargo fmt --che
 
 ### Adding a fixture
 
-`tests/data/` is a golden database of vCards (see [ARCHITECTURE.md](./ARCHITECTURE.md#the-golden-fixture-database)); adding a real-world card is the fastest way to turn a bug report into a regression test:
+`tests/data/` is a golden database of vCards (see the golden fixture database section of the [src/lib.rs](./src/lib.rs) header); adding a real-world card is the fastest way to turn a bug report into a regression test:
 
 1. drop the card in as `tests/data/<name>.vcf`;
 2. generate the expectation: `cargo run --features cli -- template tests/data/<name>.vcf -o tests/data/<name>.all.toml`;
 3. eyeball the generated `.toml`; if anything looks wrong, you have found a bug, fix the code rather than the fixture;
-4. if the source will not round-trip byte-for-byte (see the limitations in ARCHITECTURE), add an empty `tests/data/<name>.lossy` marker;
+4. if the source will not round-trip byte-for-byte (see the known limitations in the [src/lib.rs](./src/lib.rs) header), add an empty `tests/data/<name>.lossy` marker;
 5. run `cargo test`.
 
 ## Commit style

@@ -3,6 +3,16 @@
   ...
 }@args:
 
+let
+  tcard = import ./default.nix (
+    removeAttrs args [
+      "crossPkgs"
+      "isStatic"
+      "target"
+    ]
+  );
+
+in
 pimalaya.mkDefault (
   {
     src = ./.;
@@ -18,13 +28,17 @@ pimalaya.mkDefault (
       }:
 
       pkgs.callPackage ./package.nix {
-        inherit lib rustPlatform buildPackages;
+        inherit lib rustPlatform;
+        # the derivation runs the binary it just built, which needs a native
+        # one when cross compiling
+        buildPackages = buildPackages // {
+          inherit tcard;
+        };
         installShellCompletions = false;
         installManPages = false;
         buildNoDefaultFeatures = !defaultFeatures;
-        buildFeatures = lib.splitString "," features;
+        buildFeatures = lib.filter (feature: feature != "") (lib.splitString "," features);
       }
-
     );
   }
   // removeAttrs args [ "pimalaya" ]
