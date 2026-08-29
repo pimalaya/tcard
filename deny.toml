@@ -1,13 +1,11 @@
 [sources]
-allow-git = []
+allow-org.github = ["pimalaya"]
 unknown-registry = "deny"
 unknown-git = "deny"
 
 [licenses]
 allow = [
-  "Apache-2.0 WITH LLVM-exception",
   "Apache-2.0",
-  "BSD-3-Clause",
   "MIT",
   "Unicode-3.0",
 ]
