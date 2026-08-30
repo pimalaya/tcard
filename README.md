@@ -1,4 +1,4 @@
-# tCard [![Matrix](https://img.shields.io/badge/chat-%23pimalaya-blue?style=flat&logo=matrix&logoColor=white)](https://matrix.to/#/#pimalaya:matrix.org) [![Mastodon](https://img.shields.io/badge/news-%40pimalaya-blue?style=flat&logo=mastodon&logoColor=white)](https://fosstodon.org/@pimalaya) [![Sponsor](https://img.shields.io/badge/sponsor-pink?style=flat&logo=github-sponsors&logoColor=white)](https://pimalaya.org/sponsor/)
+# tCard [![Documentation](https://img.shields.io/docsrs/tcard?style=flat&logo=docs.rs&logoColor=white)](https://docs.rs/tcard/latest/tcard) [![Matrix](https://img.shields.io/badge/chat-%23pimalaya-blue?style=flat&logo=matrix&logoColor=white)](https://matrix.to/#/#pimalaya:matrix.org) [![Mastodon](https://img.shields.io/badge/news-%40pimalaya-blue?style=flat&logo=mastodon&logoColor=white)](https://fosstodon.org/@pimalaya) [![Sponsor](https://img.shields.io/badge/sponsor-pink?style=flat&logo=github-sponsors&logoColor=white)](https://pimalaya.org/sponsor/)
 
 Edit and merge [vCards](https://www.rfc-editor.org/rfc/rfc6350) as ergonomic TOML
 
@@ -61,7 +61,7 @@ This repository ships two interfaces: a Rust library projecting a card to TOML a
 - **Minimal, lossless diffs**: only the lines you changed are re-rendered, and every other line keeps the card's own bytes.
 - **Verbatim passthrough**: a property tCard does not list, a parameter the form hides and a group prefix all survive an edit untouched.
 - **Three-way merge**: `merge` reconciles two divergent cards against their base, writing what it cannot decide as duplicate TOML keys.
-- **Interactive edition** via `$EDITOR` (requires the `cli` cargo feature)
+- **Interactive editing** through `$EDITOR`, behind the opt-in `cli` cargo feature.
 
 ## Installation
 
@@ -88,10 +88,14 @@ For a more up-to-date version, check the [releases](https://github.com/pimalaya/
 The binary lives behind the `cli` feature, which is off by default so that a library consumer pays for none of it:
 
 ```sh
-cargo install --locked --features cli --git https://github.com/pimalaya/tcard.git
+cargo install --locked --features cli tcard
 ```
 
-tCard is not on [crates.io](https://crates.io) yet, so the git repository is the only source, for the binary and for a `tcard` dependency alike.
+The library alone is a `tcard` dependency, which pulls in none of that:
+
+```sh
+cargo add tcard
+```
 
 ### Nix
 
