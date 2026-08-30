@@ -45,8 +45,6 @@ This repository ships two interfaces: a Rust library projecting a card to TOML a
 - [Features](#features)
 - [Installation](#installation)
 - [Usage](#usage)
-  - [Library](#library)
-  - [CLI](#cli)
 - [AI policy](https://github.com/pimalaya/.github/blob/master/AI_POLICY.md)
 - [License](#license)
 - [Social](#social)
