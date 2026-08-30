@@ -28,26 +28,26 @@ use pimalaya_cli::{
         args::{JsonFlag, LogFlags},
         commands::{CompletionCommand, ManualCommand},
     },
-    long_version,
+    footer, long_version,
     printer::Printer,
 };
 
 use crate::cli::{edit::EditCommand, merge::MergeCommand, template::TemplateCommand};
 
 /// The tCard command-line interface.
+///
+/// The version is not propagated to the verbs, which the rest of Pimalaya
+/// does: `-V`/`--version` on `template` and `edit` is the vCard version they
+/// write, and clap would refuse the two under one flag.
 #[derive(Parser, Debug)]
 #[command(name = env!("CARGO_PKG_NAME"))]
-#[command(author, version, about)]
-#[command(long_version = long_version!())]
+#[command(author, version, about, long_version = long_version!(), after_help = footer!())]
 #[command(infer_subcommands = true)]
 pub struct Cli {
-    /// The verb to run.
     #[command(subcommand)]
     pub cmd: Command,
-    /// Whether command output is written as JSON.
     #[command(flatten)]
     pub json: JsonFlag,
-    /// How much the run logs, and where the log goes.
     #[command(flatten)]
     pub log: LogFlags,
 }
@@ -70,7 +70,6 @@ pub enum Command {
 }
 
 impl Command {
-    /// Run the verb, reporting through the shared printer.
     pub fn execute(self, printer: &mut impl Printer) -> Result<()> {
         match self {
             Self::Template(cmd) => cmd.execute(printer),
