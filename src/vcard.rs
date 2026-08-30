@@ -3,7 +3,7 @@
 //! The one reader every verb uses, and the byte-preserving edits a fold-back
 //! makes through it.
 //!
-//! [`parse`] reads a whole stream into vcard-rs's syntax tree, which
+//! [`Cards::parse`] reads a whole stream into vcard-rs's syntax tree, which
 //! reproduces the wire bytes exactly. A card is therefore read once: what the
 //! merge reconciles and what the projection walks are the same tree, and no
 //! value passes through a second reader that might normalise it.
@@ -32,7 +32,7 @@ use vcard::{
 
 use crate::{
     error::{Result, TcardError},
-    template::patch::{prefix, split, value},
+    template::patch::{Content, split},
 };
 
 /// A parsed vCard stream: the cards it holds, byte for byte.
@@ -40,10 +40,31 @@ use crate::{
 /// A file often holds several, and every verb reads them all, so the stream is
 /// the unit rather than the card: [`VcardCst::parse`] stops at the first card
 /// and the rest would be lost.
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct Cards<'a>(pub Vec<VcardCst<'a>>);
 
 impl<'a> Cards<'a> {
+    /// Parse a whole vCard stream.
+    ///
+    /// A bare RFC 2425 record with no `BEGIN:VCARD` envelope is accepted as
+    /// well as a full card.
+    pub fn parse(input: &'a str) -> Result<Self> {
+        if input.trim().is_empty() {
+            return Ok(Self::default());
+        }
+
+        if !input.trim_start().starts_with("BEGIN") {
+            return VcardCst::parse(input)
+                .map(|card| Self(vec![card]))
+                .map_err(|err| TcardError::ParseVcard(err.to_string()));
+        }
+
+        VcardCst::parse_many(input)
+            .collect::<core::result::Result<Vec<_>, _>>()
+            .map(Self)
+            .map_err(|err| TcardError::ParseVcard(err.to_string()))
+    }
+
     /// The version the first card declares, `None` when it declares none.
     pub fn version(&self) -> Option<VcardVersion> {
         let card = self.0.first()?;
@@ -75,27 +96,6 @@ impl fmt::Display for Cards<'_> {
     }
 }
 
-/// Parse a whole vCard stream.
-///
-/// A bare RFC 2425 record with no `BEGIN:VCARD` envelope is accepted as well
-/// as a full card.
-pub fn parse(input: &str) -> Result<Cards<'_>> {
-    if input.trim().is_empty() {
-        return Ok(Cards::default());
-    }
-
-    if !input.trim_start().starts_with("BEGIN") {
-        return VcardCst::parse(input)
-            .map(|card| Cards(vec![card]))
-            .map_err(|err| TcardError::ParseVcard(err.to_string()));
-    }
-
-    VcardCst::parse_many(input)
-        .collect::<core::result::Result<Vec<_>, _>>()
-        .map(Cards)
-        .map_err(|err| TcardError::ParseVcard(err.to_string()))
-}
-
 /// The byte-preserving property edits a fold-back makes to one card.
 pub trait Card {
     /// The content lines of the properties of that name, in source order.
@@ -118,6 +118,7 @@ impl Card for VcardCst<'_> {
 
     fn set_lines(&mut self, name: &str, lines: &[String]) {
         let eol = eol_of(self);
+        let escaper = VcardEscaper::for_version(self.version());
         let held: Vec<usize> = self
             .props
             .iter()
@@ -134,7 +135,7 @@ impl Card for VcardCst<'_> {
             };
 
             if logical(held) != line {
-                *held = built(&line, &eol);
+                *held = built(&line, &eol, escaper);
             }
         }
 
@@ -143,7 +144,7 @@ impl Card for VcardCst<'_> {
         }
 
         for line in lines.iter().skip(held.len()) {
-            self.props.push(built(line, &eol));
+            self.props.push(built(line, &eol, escaper));
         }
     }
 }
@@ -201,38 +202,57 @@ fn bare(name: &str) -> &str {
 /// Build an owned content line from its text, ended with `eol`.
 ///
 /// The name, every parameter and the value are carried across verbatim, so a
-/// parameter a fold-back kept from the source keeps the bytes it had.
-fn built(text: &str, eol: &str) -> VcardLine<'static> {
-    let mut params = split(prefix(text), ';');
+/// parameter a fold-back kept from the source keeps the bytes it had. Both the
+/// value and the parameters are stamped with `escaper`, the rules the card's
+/// own version is read and written in.
+///
+/// The line carries no wire layout, so it goes out unfolded. It is one the
+/// document wrote, and a layout is offsets into the bytes of the line it
+/// replaces, which are not these.
+fn built(text: &str, eol: &str, escaper: VcardEscaper) -> VcardLine<'static> {
+    let mut params = split(Content(text).prefix(), ';');
     let name = params.remove(0);
 
-    let mut line = VcardLine::text(name.to_owned(), value(text).to_owned());
+    let mut line = VcardLine::text(name.to_owned(), Content(text).value().to_owned());
 
-    line.params = params.into_iter().map(param).collect();
+    line.params = params.iter().map(|text| param(text, escaper)).collect();
+    line.value.escaper = escaper;
     line.eol = VcardLeaf(Cow::Owned(eol.to_owned()));
     line
 }
 
-/// Build one parameter node from its text, its value left as it was written.
-fn param(text: &str) -> VcardParamNode<'static> {
-    let (name, values) = match text.split_once('=') {
-        Some((name, values)) => (name, vec![VcardLeaf(Cow::Owned(values.to_owned()))]),
-        None => (text, Vec::new()),
-    };
+/// Build one parameter node from its text, its values left as they were
+/// written.
+///
+/// vcard-rs splits the values, a comma inside a quoted one not counting, and
+/// the pieces are taken over owned since the text they come from is the line a
+/// fold-back has just assembled.
+fn param(text: &str, escaper: VcardEscaper) -> VcardParamNode<'static> {
+    let node = VcardParamNode::parse(text);
 
     VcardParamNode {
-        name: VcardLeaf(Cow::Owned(name.to_owned())),
-        values,
-        escaper: VcardEscaper::default(),
+        name: VcardLeaf(Cow::Owned(node.name.get().to_owned())),
+        values: node
+            .values
+            .iter()
+            .map(|value| VcardLeaf(Cow::Owned(value.get().to_owned())))
+            .collect(),
+        escaper,
     }
 }
 
 /// An empty card, its envelope written with the given line ending.
+///
+/// It declares no version, so its envelope takes the default escaping rules,
+/// which are the ones a card declaring none is read at. The two lines carry
+/// neither a parameter nor a value to escape anyway.
 fn empty(eol: &str) -> VcardCst<'static> {
+    let escaper = VcardEscaper::default();
+
     VcardCst {
-        begin: Some(built("BEGIN:VCARD", eol)),
+        begin: Some(built("BEGIN:VCARD", eol, escaper)),
         props: Vec::new(),
-        end: Some(built("END:VCARD", eol)),
+        end: Some(built("END:VCARD", eol, escaper)),
         trailing: Cow::Borrowed(""),
     }
 }

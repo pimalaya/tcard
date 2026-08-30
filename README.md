@@ -1,6 +1,6 @@
 # tCard [![Matrix](https://img.shields.io/badge/chat-%23pimalaya-blue?style=flat&logo=matrix&logoColor=white)](https://matrix.to/#/#pimalaya:matrix.org) [![Mastodon](https://img.shields.io/badge/news-%40pimalaya-blue?style=flat&logo=mastodon&logoColor=white)](https://fosstodon.org/@pimalaya) [![Sponsor](https://img.shields.io/badge/sponsor-pink?style=flat&logo=github-sponsors&logoColor=white)](https://pimalaya.org/sponsor/)
 
-CLI to edit [vCards](https://www.rfc-editor.org/rfc/rfc6350) as ergonomic TOML
+Edit and merge [vCards](https://www.rfc-editor.org/rfc/rfc6350) as ergonomic TOML
 
 ```sh
 tcard edit
@@ -43,13 +43,10 @@ This repository ships two interfaces: a Rust library projecting a card to TOML a
 ## Table of contents
 
 - [Features](#features)
-- [RFC coverage](#rfc-coverage)
 - [Installation](#installation)
-  - [Pre-built binary](#pre-built-binary)
-  - [Cargo](#cargo)
-  - [Nix](#nix)
-  - [Sources](#sources)
 - [Usage](#usage)
+  - [Library](#library)
+  - [CLI](#cli)
 - [AI policy](https://github.com/pimalaya/.github/blob/master/AI_POLICY.md)
 - [License](#license)
 - [Social](#social)
@@ -60,24 +57,11 @@ This repository ships two interfaces: a Rust library projecting a card to TOML a
 
 - **Ergonomic projection**: a card becomes a fillable TOML form, its cryptic property names becoming readable keys.
 - **Structured** names and addresses: `N` and `ADR` expand into named components, and a typed property lists the `TYPE` values it accepts.
-- **Discoverable** properties: the blank form lists every property tcard knows, with empty values, so filling one needs no reference.
+- **Discoverable** properties: the blank form lists every property tCard knows, with empty values, so filling one needs no reference.
 - **Minimal, lossless diffs**: only the lines you changed are re-rendered, and every other line keeps the card's own bytes.
-- **Verbatim passthrough**: a property tcard does not list, a parameter the form hides and a group prefix all survive an edit untouched.
+- **Verbatim passthrough**: a property tCard does not list, a parameter the form hides and a group prefix all survive an edit untouched.
 - **Three-way merge**: `merge` reconciles two divergent cards against their base, writing what it cannot decide as duplicate TOML keys.
-- **Partial `no_std` support**: the projection and the merge build without `std`, the CLI sitting behind the opt-in `cli` feature.
-
-## RFC coverage
-
-| Version   | What is covered                                                                                       |
-|-----------|-------------------------------------------------------------------------------------------------------|
-| vCard 2.1 | The pre-standard version older address books still export, its bare type parameters included            |
-| [2426]    | vCard 3.0, including the properties this version requires and the ones it spells differently             |
-| [6350]    | vCard 4.0, the current standard, its deprecated address components hidden from the form yet preserved   |
-
-[2426]: https://www.rfc-editor.org/rfc/rfc2426
-[6350]: https://www.rfc-editor.org/rfc/rfc6350
-
-A card is read at the version it declares, and only a card starting from scratch is written at the version you ask for.
+- **Interactive edition** via `$EDITOR` (requires the `cli` cargo feature)
 
 ## Installation
 
@@ -107,7 +91,7 @@ The binary lives behind the `cli` feature, which is off by default so that a lib
 cargo install --locked --features cli --git https://github.com/pimalaya/tcard.git
 ```
 
-tcard is not on [crates.io](https://crates.io) yet, so the git repository is the only source, for the binary and for a `tcard` dependency alike.
+tCard is not on [crates.io](https://crates.io) yet, so the git repository is the only source, for the binary and for a `tcard` dependency alike.
 
 ### Nix
 
@@ -133,7 +117,13 @@ nix run
 
 ## Usage
 
-Run `tcard --help` for the full command tree, and `tcard <command> --help` for a command's arguments and what it does with them. The library API is documented by its inline docs, which will render on docs.rs once the crate is published.
+### Library
+
+See documentation at [docs.rs](https://docs.rs/tcard/latest/tcard).
+
+### CLI
+
+Run `tcard --help` for the full command tree, and `tcard <command> --help` for a command's arguments and what it does with them.
 
 A source is a path to a vCard file, `-` for stdin, or literal vCard contents; omitting it starts from a blank form. A few real command lines:
 
@@ -148,7 +138,7 @@ tcard edit --version 3.0 --output bob.vcf
 tcard merge base.vcf local.vcf remote.vcf --output merged.vcf
 ```
 
-The editor is the one the [edit](https://crates.io/crates/edit) crate resolves: `$VISUAL` first, then `$EDITOR`, then an OS default. tcard reads no configuration file, so set them in your shell instead.
+The editor is the one the [edit](https://crates.io/crates/edit) crate resolves: `$VISUAL` first, then `$EDITOR`, then an OS default. tCard reads no configuration file, so set them in your shell instead.
 
 Logs go to stderr, so they can be redirected to a file while the command output stays on stdout:
 

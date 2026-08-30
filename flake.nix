@@ -1,5 +1,5 @@
 {
-  description = "CLI to edit vCards as ergonomic TOML";
+  description = "Edit and merge vCards as ergonomic TOML";
 
   inputs = {
     nixpkgs = {

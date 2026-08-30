@@ -1061,7 +1061,6 @@ dependencies = [
  "log",
  "pimalaya-cli",
  "proptest",
- "thiserror",
  "toml_edit",
  "uuid",
  "vcard-rs",
@@ -1214,8 +1213,9 @@ dependencies = [
 
 [[package]]
 name = "vcard-rs"
-version = "0.2.1"
-source = "git+https://github.com/pimalaya/vcard#dfc988553669f2416d09c717ab46645c67dcd0a9"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fc45b02b92b6492f3e50408e0ff6443768e5feeb5cfb2835870be75b1c1fe41c"
 dependencies = [
  "memchr",
 ]

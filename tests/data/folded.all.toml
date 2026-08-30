@@ -3,23 +3,23 @@
 # Fill what you need; empty fields are ignored. Properties
 # tCard does not model are kept verbatim, not shown here.
 
-full-name = "altid"	# required
-kind = ""		# individual, group, org
+full-name = "Ada Lovelace"	# required
+kind = ""			# individual, group, org
 nickname = []
 organization = []
 title = ""
 role = ""
 categories = []
-language = []		# en, fr
-birthday = ""		# 1996-04-15, or "--0415" without a year
-anniversary = ""	# 2009-08-08
-geo = ""		# geo:37.78,-122.40
-timezone = ""		# America/New_York
-note = "RFC6350 requires N to have cardinality <=1 but allows alternative representations to be included if they are linked by the ALTID parameter."
+language = []			# en, fr
+birthday = ""			# 1996-04-15, or "--0415" without a year
+anniversary = ""		# 2009-08-08
+geo = ""			# geo:37.78,-122.40
+timezone = ""			# America/New_York
+note = "A note long enough that an exporter folds it at seventy-five octets, which is where this one breaks and carries on."
 
 [name]
-family = "representation"
-given = "one"
+family = "Lovelace"
+given = "Ada"
 additional = ""
 prefixes = ""
 suffixes = ""
@@ -29,8 +29,8 @@ sex = ""	# F, M, O, N, U
 identity = ""
 
 [[email]]
-type = ""	# home, work
-value = ""	# email address
+type = "work"				# home, work
+value = "ada@analytical.example"	# email address
 
 [[phone]]
 type = ""	# home, work, cell, fax, voice, video, pager, text, textphone

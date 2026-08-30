@@ -1,0 +1,9 @@
+BEGIN:VCARD
+VERSION:4.0
+FN:Ada Lovelace
+N:Lovelace;Ada
+NOTE:A note long enough that an exporter folds it at seventy-five octets\,
+  which is where this one breaks and carries on.
+
+EMAIL;TYPE=work:ada@analytical.example
+END:VCARD

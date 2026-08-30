@@ -1,6 +1,6 @@
 [package]
 name = "tcard"
-description = "CLI to edit vCards as ergonomic TOML"
+description = "Edit and merge vCards as ergonomic TOML"
 version = "0.0.1"
 authors = ["Clément DOUIN (soywod) <clement.douin@posteo.net>"]
 edition = "2024"
@@ -17,7 +17,7 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
-default = []
+default = ["cli"]
 cli = ["dep:anyhow", "dep:clap", "dep:edit", "dep:pimalaya-cli", "dep:uuid"]
 
 [profile.release]
@@ -47,10 +47,6 @@ clap = { version = "4.4", features = ["derive", "env", "wrap_help"], optional = 
 edit = { version = "0.1", optional = true }
 log = { version = "0.4", default-features = false }
 pimalaya-cli = { version = "0.2", default-features = false, features = ["prompt", "terminal"], optional = true }
-thiserror = { version = "2", default-features = false }
 toml_edit = "0.25"
 uuid = { version = "1", features = ["v4"], optional = true }
-vcard-rs = { version = "0.2", default-features = false, features = ["parser"] }
-
-[patch.crates-io]
-vcard-rs.git = "https://github.com/pimalaya/vcard"
+vcard-rs = { version = "0.3", default-features = false, features = ["parser"] }

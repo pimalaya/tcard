@@ -17,6 +17,7 @@
 
 use std::{fs, path::Path};
 
+use tcard::template::Template;
 use vcard::version::VcardVersion;
 
 #[test]
@@ -41,11 +42,10 @@ fn fixtures_project_and_round_trip() {
         let vcf = fs::read_to_string(dir.join(format!("{name}.vcf"))).unwrap();
         let expected = fs::read_to_string(&path).unwrap();
 
-        let cards = tcard::vcard::parse(&vcf).unwrap();
-        let version = cards.version().unwrap_or(VcardVersion::V4_0);
+        let template = Template::parse(&vcf, VcardVersion::V4_0).unwrap();
 
         let projected = match mode {
-            "all" => tcard::template::project(&cards, version),
+            "all" => template.project(),
             other => panic!("unknown fixture mode {other:?}: {}", path.display()),
         };
         assert_eq!(
@@ -55,10 +55,8 @@ fn fixtures_project_and_round_trip() {
             path.display()
         );
 
-        // NOTE: a `.lossy` marker says the source is not in the form a
-        // fold-back writes, so only the projection is asserted there.
         if !dir.join(format!("{name}.lossy")).exists() {
-            let round_trip = tcard::template::apply(&vcf, &expected).unwrap();
+            let round_trip = template.apply(&expected).unwrap();
             assert_eq!(round_trip, vcf, "round-trip mismatch: {}", path.display());
         }
     }

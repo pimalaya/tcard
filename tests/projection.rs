@@ -11,20 +11,24 @@
 //! failure is the projection's and not the generator's.
 
 use proptest::prelude::*;
+use tcard::template::Template;
 use vcard::version::VcardVersion;
+
+/// Read a card the way the CLI does, at the version it declares.
+fn template(src: &str) -> Template<'_> {
+    Template::parse(src, VcardVersion::V4_0).unwrap()
+}
 
 /// Fold an untouched projection of a card back onto its own source.
 fn round_trip(src: &str) -> String {
-    let toml = project(src);
-    tcard::template::apply(src, &toml).unwrap()
+    let template = template(src);
+
+    template.apply(&template.project()).unwrap()
 }
 
-/// Project a card the way the CLI does, at the version the card declares.
+/// Project a card at the version it declares.
 fn project(src: &str) -> String {
-    let cards = tcard::vcard::parse(src).unwrap();
-    let version = cards.version().unwrap_or(VcardVersion::V4_0);
-
-    tcard::template::project(&cards, version)
+    template(src).project()
 }
 
 /// Wrap content lines into a vCard 4.0 file.
@@ -260,7 +264,8 @@ fn a_grouped_property_is_not_duplicated() {
 }
 
 /// Two properties of one repeatable name keep their identity and their
-/// parameters through the round trip, rather than collapsing into one value.
+/// parameters through the round trip, rather than collapsing into one value
+/// that a second pass would escape into one nonsense value.
 ///
 /// See findings/tcard-repeated-property-collapse.md.
 #[test]
@@ -274,8 +279,6 @@ fn repeated_properties_of_one_name_do_not_collapse() {
         once.lines().filter(|line| line.starts_with("LANG")).count(),
         2
     );
-    // NOTE: the collapse is not even stable, a second pass escaping the
-    // separator and turning two languages into one nonsense value.
     assert_eq!(round_trip(&once), once);
 }
 
@@ -352,4 +355,28 @@ fn a_one_letter_gender_identity_keeps_its_case() {
     let src = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:Jane\r\nGENDER:F;m\r\nEND:VCARD\r\n";
 
     assert_eq!(round_trip(src), src);
+}
+
+/// A folded line the document leaves alone keeps its folds, and one the
+/// document moves goes back out unfolded.
+///
+/// The wire layout is a list of offsets into the line's own bytes, so an edit
+/// that changes the line's length invalidates it, and RFC 6350 section 3.2
+/// recommends folding rather than requiring it.
+#[test]
+fn a_fold_survives_a_line_the_document_leaves_alone() {
+    let folded = "NOTE:a note long enough that the exporter which wrote it folded the\r\n  line";
+    let src = format!("BEGIN:VCARD\r\nVERSION:4.0\r\nFN:Jane\r\n{folded}\r\nEND:VCARD\r\n");
+
+    assert_eq!(round_trip(&src), src);
+
+    let edited = project(&src).replace("a note", "the note");
+    let out = template(&src).apply(&edited).unwrap();
+
+    assert!(
+        out.contains(
+            "NOTE:the note long enough that the exporter which wrote it folded the line\r\n"
+        ),
+        "{out}",
+    );
 }

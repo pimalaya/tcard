@@ -41,3 +41,13 @@ History is what the cairn log is for. A changelog that keeps a second copy of it
 - GIVEN an unreleased section holding additions written at different times
 - WHEN the changelog is read
 - THEN all of them are under the one Added heading
+
+### Requirement: The product is written tCard
+Prose SHALL write the product name tCard, and `tcard` SHALL be reserved for the identifier: the crate, the binary, the module path and a shell command. The document a person edits carries the prose form.
+
+The name is the one thing a reader sees before anything else, in the header of every document the tool generates. Writing the identifier there says the tool is its own binary name, which is a detail of packaging rather than what the thing is called.
+
+#### Scenario: The header of a generated document
+- GIVEN a projected TOML form
+- WHEN its header comment is read
+- THEN it names tCard

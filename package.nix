@@ -59,7 +59,7 @@ rustPlatform.buildRustPackage (finalAttrs: {
     '';
 
   meta = {
-    description = "CLI to edit vCards as ergonomic TOML";
+    description = "Edit vCards as ergonomic TOML";
     mainProgram = finalAttrs.pname;
     homepage = "https://github.com/pimalaya/${finalAttrs.pname}";
     changelog = "https://github.com/pimalaya/${finalAttrs.pname}/releases/${finalAttrs.src.tag}";

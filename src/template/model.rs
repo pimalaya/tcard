@@ -18,12 +18,9 @@ use vcard::version::VcardVersion;
 
 use crate::template::{
     datetime::{date_rhs, toml_date_value},
-    line::Line,
-    patch,
-    util::{
-        escape, items, join_components, read_components, read_type, tables, text, toml_array,
-        toml_str, types,
-    },
+    line::{Line, Lines},
+    patch::{Content, escape, named},
+    toml::{read_components, read_type, tables, toml_array, toml_str},
 };
 
 /// A named component of a structured value.
@@ -323,112 +320,86 @@ impl Field {
     /// A sectioned kind heads its block under `prefix`: `None` gives `[name]`
     /// and `[[email]]` at the top level, `card` gives `[card.name]` and
     /// `[[card.email]]`.
-    pub fn lines(&self, held: &[String], version: VcardVersion, prefix: Option<&str>) -> Vec<Line> {
-        let hint = if self.required(version) {
-            Some("required".to_owned())
-        } else {
-            self.hint.map(str::to_owned)
+    pub fn lines(&self, held: &[String], version: VcardVersion, prefix: Option<&str>) -> Lines {
+        let hint = match self.required(version) {
+            true => Some("required".to_owned()),
+            false => self.hint.map(str::to_owned),
         };
         let header = section_header(prefix, self.key);
+        let mut lines = Lines::default();
 
         match &self.kind {
             Kind::Scalar => {
-                let value = held.first().map(|line| text(line)).unwrap_or_default();
-                vec![Line {
-                    lhs: format!("{} = {}", self.key, toml_str(&value)),
-                    hint,
-                }]
+                let value = held
+                    .first()
+                    .map(|line| Content(line).text())
+                    .unwrap_or_default();
+                lines.push(format!("{} = {}", self.key, toml_str(&value)), hint);
             }
 
             Kind::Date => {
                 let rhs = match held.first() {
-                    Some(line) => date_rhs(&text(line)),
+                    Some(line) => date_rhs(&Content(line).text()),
                     None => toml_str(""),
                 };
-                vec![Line {
-                    lhs: format!("{} = {}", self.key, rhs),
-                    hint,
-                }]
+                lines.push(format!("{} = {}", self.key, rhs), hint);
             }
 
             Kind::List { sep } => {
-                let values: Vec<String> = held.iter().flat_map(|line| items(line, *sep)).collect();
-                vec![Line {
-                    lhs: format!("{} = {}", self.key, toml_array(&values)),
-                    hint,
-                }]
+                let values: Vec<String> = held
+                    .iter()
+                    .flat_map(|line| Content(line).texts(*sep))
+                    .collect();
+                lines.push(format!("{} = {}", self.key, toml_array(&values)), hint);
             }
 
             Kind::Structured(components) => {
                 let values = held
                     .first()
-                    .map(|line| items(line, ';'))
+                    .map(|line| Content(line).texts(';'))
                     .unwrap_or_default();
-                let mut lines = vec![Line {
-                    lhs: format!("[{header}]"),
-                    hint,
-                }];
+
+                lines.push(format!("[{header}]"), hint);
                 lines.extend(component_lines(components, &values, version));
-                lines
             }
 
-            Kind::Typed { types: accepted } => {
-                let mut lines = Vec::new();
-
+            Kind::Typed { .. } => {
                 if held.is_empty() {
-                    lines.push(Line {
-                        lhs: format!("[[{header}]]"),
-                        hint: None,
-                    });
-                    type_line(&mut lines, "", accepted);
-                    lines.push(Line {
-                        lhs: "value = \"\"".into(),
-                        hint,
-                    });
-                } else {
-                    for line in held {
-                        lines.push(Line {
-                            lhs: format!("[[{header}]]"),
-                            hint: None,
-                        });
-                        type_line(&mut lines, &types(line), accepted);
-                        lines.push(Line {
-                            lhs: format!("value = {}", toml_str(&text(line))),
-                            hint: self.hint.map(str::to_owned),
-                        });
-                    }
+                    lines.push(format!("[[{header}]]"), None);
+                    lines.extend(self.type_lines(""));
+                    lines.push("value = \"\"".to_owned(), hint);
                 }
 
-                lines
+                for line in held {
+                    let line = Content(line);
+
+                    lines.push(format!("[[{header}]]"), None);
+                    lines.extend(self.type_lines(&line.types().join(",")));
+                    lines.push(
+                        format!("value = {}", toml_str(&line.text())),
+                        self.hint.map(str::to_owned),
+                    );
+                }
             }
 
-            Kind::TypedStructured {
-                types: accepted,
-                components,
-            } => {
-                let mut lines = Vec::new();
-
+            Kind::TypedStructured { components, .. } => {
                 if held.is_empty() {
-                    lines.push(Line {
-                        lhs: format!("[[{header}]]"),
-                        hint: None,
-                    });
-                    type_line(&mut lines, "", accepted);
+                    lines.push(format!("[[{header}]]"), None);
+                    lines.extend(self.type_lines(""));
                     lines.extend(component_lines(components, &[], version));
-                } else {
-                    for line in held {
-                        lines.push(Line {
-                            lhs: format!("[[{header}]]"),
-                            hint: None,
-                        });
-                        type_line(&mut lines, &types(line), accepted);
-                        lines.extend(component_lines(components, &items(line, ';'), version));
-                    }
                 }
 
-                lines
+                for line in held {
+                    let line = Content(line);
+
+                    lines.push(format!("[[{header}]]"), None);
+                    lines.extend(self.type_lines(&line.types().join(",")));
+                    lines.extend(component_lines(components, &line.texts(';'), version));
+                }
             }
         }
+
+        lines
     }
 
     /// This field's content lines, built from a TOML table, without line ends.
@@ -525,13 +496,39 @@ impl Field {
         lines
     }
 
+    /// The `type` line of one instance, with its accepted-types hint.
+    ///
+    /// Empty for a property the vocabulary lists no common type set for
+    /// (`PHOTO`), which therefore shows no such line at all.
+    fn type_lines(&self, value: &str) -> Lines {
+        let mut lines = Lines::default();
+
+        let accepted = match self.kind {
+            Kind::Typed { types } | Kind::TypedStructured { types, .. } => types,
+            _ => &[],
+        };
+
+        if !accepted.is_empty() {
+            lines.push(
+                format!("type = {}", toml_str(value)),
+                Some(accepted.join(", ")),
+            );
+        }
+
+        lines
+    }
+
     /// One content line for this field.
     ///
     /// The value behind the prefix its own line carried, or behind the bare
     /// property name when the line is new.
     fn line(&self, original: Option<&String>, types: Option<&str>, value: &str) -> String {
-        let original = original.map(String::as_str);
-        format!("{}:{value}", patch::rewritten(original, self.name, types))
+        let prefix = match original {
+            Some(line) => Content(line).rewritten(types),
+            None => named(self.name, types),
+        };
+
+        format!("{prefix}:{value}")
     }
 }
 
@@ -561,9 +558,7 @@ fn spread<'i, 'o>(
             break;
         }
 
-        let held = patch::items(patch::value(original), sep)
-            .len()
-            .clamp(1, rest.len());
+        let held = Content(original).items(sep).len().clamp(1, rest.len());
         let (head, tail) = rest.split_at(held);
         out.push((Some(original), head));
         rest = tail;
@@ -571,6 +566,16 @@ fn spread<'i, 'o>(
 
     out.extend(rest.iter().map(|item| (None, slice::from_ref(item))));
     out
+}
+
+/// Join structured components with `;`, dropping trailing empties.
+fn join_components(parts: &[String]) -> String {
+    let last = parts
+        .iter()
+        .rposition(|part| !part.is_empty())
+        .map_or(0, |index| index + 1);
+
+    parts[..last].join(";")
 }
 
 /// The TOML header for a section `key` under an optional parent `prefix`.
@@ -591,40 +596,22 @@ fn shown<'t>(types: &[&str], table: &'t dyn TableLike) -> Option<&'t str> {
     (!types.is_empty()).then(|| read_type(table))
 }
 
-/// Push a `type =` line with its accepted-types hint.
-///
-/// Nothing is pushed for a property with no common type set.
-fn type_line(lines: &mut Vec<Line>, value: &str, types: &[&str]) {
-    if types.is_empty() {
-        return;
-    }
-
-    lines.push(Line {
-        lhs: format!("type = {}", toml_str(value)),
-        hint: Some(types.join(", ")),
-    });
-}
-
 /// Render named components, filled or empty, in order.
 ///
 /// A deprecated component is hidden in vCard 4.0 and flagged in older
 /// versions; either way its positional slot survives apply, read back by key.
-fn component_lines(
-    components: &[Component],
-    values: &[String],
-    version: VcardVersion,
-) -> Vec<Line> {
+fn component_lines(components: &[Component], values: &[String], version: VcardVersion) -> Lines {
     components
         .iter()
         .enumerate()
         .filter(|(_, component)| !component.2 || version != VcardVersion::V4_0)
         .map(|(index, (name, hint, deprecated))| {
             let value = values.get(index).map(String::as_str).unwrap_or_default();
-            let hint = if *deprecated {
-                Some("deprecated".to_owned())
-            } else {
-                hint.map(str::to_owned)
+            let hint = match deprecated {
+                true => Some("deprecated".to_owned()),
+                false => hint.map(str::to_owned),
             };
+
             Line {
                 lhs: format!("{name} = {}", toml_str(value)),
                 hint,

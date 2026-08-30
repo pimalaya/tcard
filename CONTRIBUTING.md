@@ -13,7 +13,7 @@ Everything below documents only what differs from the Pimalaya standards.
 
 ## Feature matrix
 
-tcard is a library first, so it ships no default features: the projection and the merge are a `no_std` core over `alloc`, and everything the CLI needs (clap, the editor, the filesystem, `std` itself) sits behind the opt-in `cli` feature.
+tCard is a library first, so it ships no default features: the projection and the merge are a `no_std` core over `alloc`, and everything the CLI needs (clap, the editor, the filesystem, `std` itself) sits behind the opt-in `cli` feature.
 
 The default build is therefore the narrow one, the opposite of the io- libraries, so a change touching a feature gate or an import is built both ways before it lands:
 
@@ -22,7 +22,7 @@ cargo build                   # the no_std core alone, no std leak
 cargo build --features cli    # the library plus the binary above it
 ```
 
-tcard tracks vcard-rs ahead of its crates.io release, so Cargo.toml patches it to git. To build against a local checkout, swap that entry for a path or pass one on the command line:
+tCard depends on the released vcard-rs. To build against a local checkout, pass it on the command line rather than editing Cargo.toml:
 
 ```sh
 cargo test --all-features --config 'patch.crates-io.vcard-rs.path="../vcard"'

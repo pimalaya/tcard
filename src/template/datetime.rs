@@ -14,7 +14,7 @@ use alloc::{
 
 use toml_edit::{Date, Datetime, Offset, Time};
 
-use crate::template::util::toml_str;
+use crate::template::toml::toml_str;
 
 /// A date as the projection writes one.
 ///

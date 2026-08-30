@@ -26,24 +26,26 @@
 //!
 //! ## The projection
 //!
-//! A body is read once. [`vcard::parse`] turns a whole stream into vcard-rs's
-//! byte-faithful syntax tree, and every verb walks that one tree, so no value
-//! passes through a second reader that might normalise it on the way in, where
-//! no test comparing the document against that reader could see it.
+//! A body is read once. [`vcard::Cards::parse`] turns a whole stream into
+//! vcard-rs's byte-faithful syntax tree, and every verb walks that one tree,
+//! so no value passes through a second reader that might normalise it on the
+//! way in, where no test comparing the two could see it.
 //!
-//! [`template::project`] walks the tree against the static field table and
-//! writes the form. A single card flattens at the document root, two or more
-//! become `[[card]]` blocks, and what the table does not model is not shown.
+//! [`template::Template::project`] walks that tree against the static field
+//! table and writes the form. A single card flattens at the document root, two
+//! or more become `[[card]]` blocks, and what the table does not model is not
+//! shown.
 //!
-//! [`template::apply`] folds an edited form back onto the original text,
-//! patching a modelled line rather than rebuilding it: only the value the
+//! [`template::Template::apply`] folds an edited form back onto that same
+//! tree, patching a modelled line rather than rebuilding it: only the value the
 //! document moved is written anew, and the rest of the line stays the card's
 //! own bytes, its group and the parameters the form never showed included.
 //!
-//! That is why applying needs the original text and not just the document:
-//! the TOML is an editing affordance, never an interchange format.
+//! That is why a fold-back is a method on the template the form came from,
+//! rather than a function over a document: the TOML is an editing affordance,
+//! never an interchange format.
 //!
-//! The boundary is that tcard owns the content-line grammar it patches while
+//! The boundary is that tCard owns the content-line grammar it patches while
 //! vcard-rs owns the card's structure and its bytes. The projection reads
 //! through that same grammar, so what the form shows and what a fold-back
 //! writes agree by construction.
@@ -81,7 +83,7 @@
 //!
 //! ## The merge
 //!
-//! [`merge::project`] reconciles a local and a remote card against the base
+//! [`merge::Merge`] reconciles a local and a remote card against the base
 //! they both came from, then renders the outcome through the same projection,
 //! so a merge is read and edited in the form everything else is.
 //!
@@ -90,7 +92,7 @@
 //! naming its side, which makes the same TOML key appear twice.
 //!
 //! TOML forbids duplicate keys, so an undecided document does not parse.
-//! [`merge::apply`] catches that refusal and names the field left undecided
+//! [`merge::Merged::apply`] catches that refusal and names the field left undecided
 //! rather than reporting a syntax error, and nothing is written until a person
 //! has deleted the line they do not want.
 //!
@@ -105,12 +107,16 @@
 //! enum.
 //!
 //! The projection's own layer sits under it, private to the crate: model holds
-//! the static vocabulary, patch the content-line grammar a fold-back writes
-//! through, datetime the dates, and line and util the comment alignment and
-//! the TOML rendering.
+//! the static vocabulary, patch the content-line grammar a fold-back reads and
+//! writes through, toml the TOML side of the same, datetime the dates and line
+//! the blocks whose hints share a column.
 //!
-//! The `cli` feature adds the cli module: the three verbs, how each resolves
-//! its source, and the editor round trip. The binary above it is wiring only,
+//! The merge splits the same way: choice turns a collision into the key it
+//! contests, document writes that key into the projection, and note says what
+//! carries no key at all.
+//!
+//! The `cli` feature adds the cli module, one module per verb over the shared
+//! arguments and the editor round trip. The binary above it is wiring only,
 //! and says so in its own header.
 //!
 //! ## The golden fixture database
@@ -122,8 +128,9 @@
 //!
 //! The imported cards come from the ez-vcard corpus (Gmail, Evolution, MS
 //! Outlook 2.1) and the calcard parser's own, alongside the RFC 6350 example
-//! and an Apple-style export. Every one of those is lossy; clean and
-//! two_cards are crafted to round trip byte-exact.
+//! and an Apple-style export. Every one of those is lossy; clean, folded and
+//! two_cards are crafted to round trip byte-exact, folded pinning the layout a
+//! card keeps: its folds and the blank line between two of its properties.
 //!
 //! A real-world export is the most valuable case, so adding one is the
 //! fastest way to turn a bug report into a regression test. CONTRIBUTING.md
@@ -135,10 +142,11 @@
 //! record. Structured components are joined with their trailing empties
 //! dropped, so `N:Doe;John;;;` is re-emitted `N:Doe;John`.
 //!
-//! vcard-rs unfolds a line on parse and keeps no record of where the folds
-//! were, so a card written folded comes back unfolded. The value is intact
-//! and only its layout moves; the sibling ical-rs keeps a wire shape for
-//! exactly this and vcard-rs does not yet.
+//! A line the document moved goes back out unfolded. vcard-rs records where a
+//! line was folded as offsets into that line's own bytes, so an edit changing
+//! its length invalidates them and the layout is dropped rather than applied
+//! in the wrong places. A line the document left alone keeps its folds, its
+//! blank lines and its quoted-printable soft breaks.
 //!
 //! A birthday or anniversary is read as the card wrote it and written back in
 //! RFC 6350 basic form, so an extended date comes back basic. A text value is

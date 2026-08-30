@@ -20,7 +20,10 @@
 //! edited, whose items are all kept.
 
 use proptest::prelude::*;
-use tcard::{error::TcardError, merge};
+use tcard::{
+    error::TcardError,
+    merge::{Merge, Merged},
+};
 
 /// One property a merge can put to a reader: how to spell it in a card, the
 /// TOML key its collision contests, and the section that key sits in.
@@ -144,11 +147,11 @@ proptest! {
     fn an_undecided_document_is_refused_by_the_field_it_leaves_undecided(
         (spec, base, local, remote) in collision(),
     ) {
-        let merged = merge::project(
+        let merged = merge(
             &card(spec, &base),
             &card(spec, &local),
             &card(spec, &remote),
-        ).unwrap();
+        );
 
         let ancestor = format!("# {} = \"{}\" # base\n", spec.key, base);
         let left = format!("{} = \"{}\" # local\n", spec.key, local);
@@ -159,7 +162,7 @@ proptest! {
         prop_assert!(merged.toml.contains(&left), "no local line: {}", merged.toml);
         prop_assert!(merged.toml.contains(&right), "no remote line: {}", merged.toml);
 
-        match merge::apply(&merged.vcard, &merged.toml) {
+        match merged.apply(&merged.toml) {
             Err(TcardError::Undecided(key)) => prop_assert_eq!(key, spec.key),
             other => prop_assert!(false, "not refused as undecided: {:?}", other.map(|_| ())),
         }
@@ -170,17 +173,17 @@ proptest! {
     /// pass a one-sided test, so both are asked for.
     #[test]
     fn keeping_one_side_yields_that_side((spec, base, local, remote) in collision()) {
-        let merged = merge::project(
+        let merged = merge(
             &card(spec, &base),
             &card(spec, &local),
             &card(spec, &remote),
-        ).unwrap();
+        );
 
-        let kept_local = merge::apply(&merged.vcard, &keeping(&merged.toml, "# remote")).unwrap();
+        let kept_local = merged.apply(&keeping(&merged.toml, "# remote")).unwrap();
         prop_assert!(kept_local.contains(&local), "{}", kept_local);
         prop_assert!(!kept_local.contains(&remote), "{}", kept_local);
 
-        let kept_remote = merge::apply(&merged.vcard, &keeping(&merged.toml, "# local")).unwrap();
+        let kept_remote = merged.apply(&keeping(&merged.toml, "# local")).unwrap();
         prop_assert!(kept_remote.contains(&remote), "{}", kept_remote);
         prop_assert!(!kept_remote.contains(&local), "{}", kept_remote);
     }
@@ -189,11 +192,11 @@ proptest! {
     /// yields that value, neither side's.
     #[test]
     fn replacing_the_lines_yields_ones_own_value((spec, base, local, remote) in collision()) {
-        let merged = merge::project(
+        let merged = merge(
             &card(spec, &base),
             &card(spec, &local),
             &card(spec, &remote),
-        ).unwrap();
+        );
 
         let mine: String = merged
             .toml
@@ -205,7 +208,7 @@ proptest! {
             })
             .collect();
 
-        let out = merge::apply(&merged.vcard, &mine).unwrap();
+        let out = merged.apply(&mine).unwrap();
 
         prop_assert!(out.contains("decided"), "{}", out);
         prop_assert!(!out.contains(&local), "{}", out);
@@ -216,19 +219,19 @@ proptest! {
     /// decides nothing and changes nothing.
     #[test]
     fn the_commented_ancestor_decides_nothing((spec, base, local, remote) in collision()) {
-        let merged = merge::project(
+        let merged = merge(
             &card(spec, &base),
             &card(spec, &local),
             &card(spec, &remote),
-        ).unwrap();
+        );
 
         let with = keeping(&merged.toml, "# remote");
         let without = keeping(&with, "# base");
 
         prop_assert_ne!(&with, &without);
         prop_assert_eq!(
-            merge::apply(&merged.vcard, &with).unwrap(),
-            merge::apply(&merged.vcard, &without).unwrap(),
+            merged.apply(&with).unwrap(),
+            merged.apply(&without).unwrap(),
         );
     }
 
@@ -245,11 +248,11 @@ proptest! {
             return Ok(());
         };
 
-        let merged = merge::project(
+        let merged = merge(
             &card(spec, &base),
             &card(spec, &local),
             &card(spec, &remote),
-        ).unwrap();
+        );
 
         prop_assert_eq!(
             merged.toml.lines().filter(|line| *line == header).count(),
@@ -258,8 +261,6 @@ proptest! {
             header,
         );
 
-        // NOTE: the contested key is written once per side and every other
-        // key exactly once, so nothing else is left undecided by accident.
         let mut written: Vec<(&str, usize)> = Vec::new();
 
         for line in block(&merged.toml, header) {
@@ -278,6 +279,17 @@ proptest! {
             prop_assert_eq!(count, usize::from(key == spec.key) + 1, "{}", key);
         }
     }
+}
+
+/// Merge three cards into the document a reader decides.
+fn merge(base: &str, local: &str, remote: &str) -> Merged {
+    Merge {
+        base,
+        local,
+        remote,
+    }
+    .project()
+    .unwrap()
 }
 
 /// The lines a section header opens, up to the next header.
@@ -299,7 +311,7 @@ fn a_removal_against_an_update_is_a_comment() {
     let local = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:Jane\r\nEND:VCARD\r\n";
     let remote = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:Jane\r\nNOTE:hello\r\nEND:VCARD\r\n";
 
-    let merged = merge::project(base, local, remote).unwrap();
+    let merged = merge(base, local, remote);
 
     assert!(notes(&merged.toml).contains("- note: removed by local, updated by remote"));
     assert!(!merged.toml.contains("# conflict"));
@@ -312,7 +324,7 @@ fn a_removal_against_an_update_is_a_comment() {
         1,
     );
 
-    let out = merge::apply(&merged.vcard, &merged.toml).unwrap();
+    let out = merged.apply(&merged.toml).unwrap();
     assert!(out.contains("NOTE:hello\r\n"));
 }
 
@@ -325,14 +337,14 @@ fn an_unprojectable_collision_keeps_the_local_value_and_says_so() {
     let local = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:Jane\r\nX-FOO:two\r\nEND:VCARD\r\n";
     let remote = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:Jane\r\nX-FOO:three\r\nEND:VCARD\r\n";
 
-    let merged = merge::project(base, local, remote).unwrap();
+    let merged = merge(base, local, remote);
 
     assert!(merged.vcard.contains("X-FOO:two"));
     assert!(!merged.vcard.contains("X-FOO:three"));
     assert!(notes(&merged.toml).contains("the local value was kept"));
     assert!(!merged.toml.contains("# conflict"));
 
-    let out = merge::apply(&merged.vcard, &merged.toml).unwrap();
+    let out = merged.apply(&merged.toml).unwrap();
     assert!(out.contains("X-FOO:two"));
 }
 
@@ -345,7 +357,7 @@ fn a_long_note_wraps_under_itself() {
     let local = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:Jane\r\nX-FOO:two\r\nEND:VCARD\r\n";
     let remote = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:Jane\r\nX-FOO:three\r\nEND:VCARD\r\n";
 
-    let merged = merge::project(base, local, remote).unwrap();
+    let merged = merge(base, local, remote);
     let header: Vec<&str> = merged
         .toml
         .lines()
@@ -368,7 +380,7 @@ fn a_positional_pairing_is_said_in_the_header() {
     let local = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:Jane\r\nTEL:+1\r\nTEL:+3\r\nEND:VCARD\r\n";
     let remote = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:Jane\r\nTEL:+1\r\nTEL:+4\r\nEND:VCARD\r\n";
 
-    let merged = merge::project(base, local, remote).unwrap();
+    let merged = merge(base, local, remote);
 
     assert!(notes(&merged.toml).contains("- phone: paired by position, not by PID"));
     assert!(merged.toml.contains("value = \"+3\" # local\n"));
@@ -384,7 +396,7 @@ fn two_contested_instances_holding_equal_values_are_told_apart() {
     let local = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:Jane\r\nTEL:+9\r\nTEL:+9\r\nEND:VCARD\r\n";
     let remote = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:Jane\r\nTEL:+3\r\nTEL:+4\r\nEND:VCARD\r\n";
 
-    let merged = merge::project(base, local, remote).unwrap();
+    let merged = merge(base, local, remote);
 
     assert_eq!(
         merged
@@ -399,10 +411,8 @@ fn two_contested_instances_holding_equal_values_are_told_apart() {
     assert!(merged.toml.contains("value = \"+3\" # remote\n"));
     assert!(merged.toml.contains("value = \"+4\" # remote\n"));
 
-    // NOTE: keeping the remote side of both gives back the remote card's
-    // numbers, each in the block it belongs to.
     let decided = keeping(&merged.toml, "# local");
-    let out = merge::apply(&merged.vcard, &decided).unwrap();
+    let out = merged.apply(&decided).unwrap();
     assert!(out.contains("TEL:+3\r\nTEL:+4\r\n"), "{out}");
 }
 
@@ -416,7 +426,7 @@ fn a_list_union_is_said_in_the_header() {
     let local = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:Jane\r\nNICKNAME:c,d\r\nEND:VCARD\r\n";
     let remote = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:Jane\r\nNICKNAME:e,f\r\nEND:VCARD\r\n";
 
-    let merged = merge::project(base, local, remote).unwrap();
+    let merged = merge(base, local, remote);
 
     assert!(
         merged.vcard.contains("NICKNAME:c,d,e,f"),
@@ -430,14 +440,12 @@ fn a_list_union_is_said_in_the_header() {
         merged.toml,
     );
 
-    // NOTE: nothing is left to choose, so the document applies as it stands,
-    // the whole list on the one key the reader can edit.
     assert!(
         merged
             .toml
             .contains("nickname = [\"c\", \"d\", \"e\", \"f\"]")
     );
-    let out = merge::apply(&merged.vcard, &merged.toml).unwrap();
+    let out = merged.apply(&merged.toml).unwrap();
     assert!(out.contains("NICKNAME:c,d,e,f"), "{out}");
 }
 
@@ -449,7 +457,7 @@ fn a_type_union_is_said_in_the_header() {
     let local = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:Jane\r\nTEL;TYPE=work:+1\r\nEND:VCARD\r\n";
     let remote = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:Jane\r\nTEL;TYPE=cell:+1\r\nEND:VCARD\r\n";
 
-    let merged = merge::project(base, local, remote).unwrap();
+    let merged = merge(base, local, remote);
 
     assert!(merged.vcard.contains("TYPE=work,cell"), "{}", merged.vcard);
     assert!(
@@ -475,10 +483,8 @@ fn a_collision_on_a_projected_key_is_offered_as_a_choice() {
     let local = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:Jane\r\nORG:C;D\r\nEND:VCARD\r\n";
     let remote = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:Jane\r\nORG:E;F\r\nEND:VCARD\r\n";
 
-    let merged = merge::project(base, local, remote).unwrap();
+    let merged = merge(base, local, remote);
 
-    // NOTE: organization is a key of the document, so the reader can decide
-    // it rather than be told in a comment that the local value was kept.
     assert!(
         merged
             .toml
@@ -499,7 +505,7 @@ fn a_date_collision_is_written_the_way_the_projection_writes_dates() {
     let local = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:Jane\r\nBDAY:19970415\r\nEND:VCARD\r\n";
     let remote = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:Jane\r\nBDAY:19980415\r\nEND:VCARD\r\n";
 
-    let merged = merge::project(base, local, remote).unwrap();
+    let merged = merge(base, local, remote);
 
     assert!(
         merged.toml.contains("birthday = 1997-04-15 # local"),
@@ -515,17 +521,13 @@ fn a_date_collision_is_written_the_way_the_projection_writes_dates() {
 /// See findings/tcard-contest-rendered-in-the-wrong-block.md.
 #[test]
 fn a_contest_is_rendered_in_its_own_block() {
-    // NOTE: only the second phone is contested, but both of local's phones
-    // read "+5", so the first block matches the value by accident.
     let base = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:Jane\r\nTEL:+1\r\nTEL:+2\r\nEND:VCARD\r\n";
     let local = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:Jane\r\nTEL:+5\r\nTEL:+5\r\nEND:VCARD\r\n";
     let remote = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:Jane\r\nTEL:+1\r\nTEL:+9\r\nEND:VCARD\r\n";
 
-    let merged = merge::project(base, local, remote).unwrap();
+    let merged = merge(base, local, remote);
 
-    // NOTE: keeping the remote side must decide the second phone and leave
-    // the first alone, rather than overwrite it and swap the two values.
-    let out = merge::apply(&merged.vcard, &keeping(&merged.toml, "# local")).unwrap();
+    let out = merged.apply(&keeping(&merged.toml, "# local")).unwrap();
 
     assert!(out.contains("TEL:+5\r\nTEL:+9\r\n"), "{out}");
 }

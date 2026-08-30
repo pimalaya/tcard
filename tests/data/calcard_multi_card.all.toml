@@ -1,8 +1,8 @@
-# vCard 3.0 as TOML, edited by tcard.
+# vCard 3.0 as TOML, edited by tCard.
 #
 # Each card is a [[card]] block; repeat a block for repeated
 # cards, delete one you do not need. Empty fields and empty
-# blocks are ignored. Properties tcard does not model are kept
+# blocks are ignored. Properties tCard does not model are kept
 # verbatim, not shown here.
 
 [[card]]

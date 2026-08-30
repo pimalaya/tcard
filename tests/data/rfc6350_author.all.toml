@@ -1,7 +1,7 @@
-# vCard 4.0 as TOML, edited by tcard.
+# vCard 4.0 as TOML, edited by tCard.
 #
 # Fill what you need; empty fields are ignored. Properties
-# tcard does not model are kept verbatim, not shown here.
+# tCard does not model are kept verbatim, not shown here.
 
 full-name = "Simon Perreault"		# required
 kind = ""				# individual, group, org
