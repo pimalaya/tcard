@@ -1215,7 +1215,7 @@ dependencies = [
 [[package]]
 name = "vcard-rs"
 version = "0.2.1"
-source = "git+https://github.com/pimalaya/vcard#a5727aa0ec2ddc80c995456801e93aa010d2727a"
+source = "git+https://github.com/pimalaya/vcard#92cef44148014ebfd060d882e0776e028d7f65f4"
 dependencies = [
  "memchr",
 ]

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- A contested value was shown cut off at its first `;`.
+
+  The document rendered a side's value by reading the first `;`-component of it, so a text value carrying an unescaped semicolon was put to the reader shorter than it is, and two sides differing only past that point read as the same value. A well-formed text value escapes its semicolons and has one component either way, so this only ever showed on a card that did not, which is exactly the card a reader most needs shown faithfully.
+
 ### Added
 
 - Added the `merge` verb and the `merge` module behind it, a three-way merge projected as TOML.

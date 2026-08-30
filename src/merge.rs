@@ -39,8 +39,7 @@ use vcard::{
         codec::{VcardCodec, mode::VcardEscaper},
         cst::VcardCst,
         merge::{
-            VcardMerge, VcardMergeAction, VcardMergeConflict, VcardMergeReport, VcardMergeSide,
-            VcardPropPath,
+            VcardMerge, VcardMergeAction, VcardMergeConflict, VcardMergeReport, VcardPropPath,
         },
     },
     value::VcardValue,
@@ -85,7 +84,6 @@ pub fn project(base: &str, local: &str, remote: &str) -> Result<Merged> {
         base: &base,
         left: &local,
         right: &remote,
-        prefer: VcardMergeSide::Left,
     }
     .merge();
     debug!("merged with {} collision(s)", report.conflicts.len());
@@ -234,11 +232,19 @@ fn choice(
         return Some(choice);
     }
 
-    let (key, base, local) = addressed(field, &conflict.left, escaper)?;
+    let (key, mut base, local) = addressed(field, &conflict.left, escaper)?;
     let (other, _, remote) = addressed(field, &conflict.right, escaper)?;
 
     if key != other || local == remote {
         return None;
+    }
+
+    // NOTE: two arrivals contest the instance both sides took away, so the
+    // ancestor is that instance and not the nothing an addition comes from.
+    if matches!(conflict.left, VcardMergeAction::PropAdded { .. })
+        && let Some(value) = vacated(report, at)
+    {
+        base = value_rhs(field, value, escaper);
     }
 
     Some(Choice {
@@ -249,6 +255,49 @@ fn choice(
         local,
         remote,
     })
+}
+
+/// The ancestor a contested addition stands over: the instance both sides
+/// took away and each then wrote anew.
+///
+/// A property whose identity is its own value cannot be seen to change, so
+/// vcard-rs reports such an edit as a departure and an arrival. Two arrivals
+/// collide only over a departure both sides agreed on, and that departed
+/// instance is the ancestor the document comments above the choice; reading
+/// the arrival alone would say the field came from nothing.
+fn vacated<'r, 'a>(
+    report: &'r VcardMergeReport<'a>,
+    at: &VcardPropPath<'_>,
+) -> Option<&'r VcardValue<'a>> {
+    let departures = |actions: &'r [VcardMergeAction<'a>]| {
+        actions
+            .iter()
+            .filter_map(|action| match action {
+                VcardMergeAction::PropRemoved { at: on, prop } if on.name == at.name => {
+                    Some((on, &prop.value))
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+    };
+
+    // NOTE: nothing ties one arrival to one departure, so they are paired in
+    // order, which is what `pairing_note` warns the reader about.
+    let rank = report
+        .left
+        .iter()
+        .filter_map(|action| match action {
+            VcardMergeAction::PropAdded { at: on, .. } if on.name == at.name => Some(on),
+            _ => None,
+        })
+        .position(|on| on == at)?;
+
+    let (ours, value) = *departures(&report.left).get(rank)?;
+
+    departures(&report.right)
+        .iter()
+        .any(|(theirs, _)| *theirs == ours)
+        .then_some(value)
 }
 
 /// The collision on a list field the merge reported one component at a time
@@ -445,7 +494,10 @@ fn value_rhs(field: &Field, value: &VcardValue<'_>, escaper: VcardEscaper) -> St
     match field.kind {
         Kind::List { .. } => toml_array(&node.decode_at(0)),
         Kind::Date => date_rhs(&node.decode_joined_at(0)),
-        _ => toml_str(&node.decode_joined_at(0)),
+        // NOTE: the whole value, not its first `;`-component. A well-formed
+        // text value escapes its semicolons and so has one component either
+        // way; one that does not is shown as it is rather than cut short.
+        _ => toml_str(&node.decode_joined()),
     }
 }
 
