@@ -3,13 +3,13 @@
 //! The one reader every verb uses, and the byte-preserving edits a fold-back
 //! makes through it.
 //!
-//! [`Cards::parse`] reads a whole stream into vcard-rs's syntax tree, which
+//! [`TcardCards::parse`] reads a whole stream into vcard-rs's syntax tree, which
 //! reproduces the wire bytes exactly. A card is therefore read once: what the
 //! merge reconciles and what the projection walks are the same tree, and no
 //! value passes through a second reader that might normalise it.
 //!
-//! [`Card`] is the edits applying a document makes, setting a property's
-//! lines, and [`Cards`] the one a whole document makes, counting the cards a
+//! [`TcardCard`] is the edits applying a document makes, setting a property's
+//! lines, and [`TcardCards`] the one a whole document makes, counting the cards a
 //! file holds. An unchanged line keeps its own bytes, its parameter casing and
 //! its group included, and only a line the document moved is written anew.
 
@@ -31,7 +31,7 @@ use vcard::{
 };
 
 use crate::{
-    error::{Result, TcardError},
+    error::{TcardError, TcardResult},
     template::patch::{Content, split},
 };
 
@@ -41,14 +41,14 @@ use crate::{
 /// the unit rather than the card: [`VcardCst::parse`] stops at the first card
 /// and the rest would be lost.
 #[derive(Clone, Default)]
-pub struct Cards<'a>(pub Vec<VcardCst<'a>>);
+pub struct TcardCards<'a>(pub Vec<VcardCst<'a>>);
 
-impl<'a> Cards<'a> {
+impl<'a> TcardCards<'a> {
     /// Parse a whole vCard stream.
     ///
     /// A bare RFC 2425 record with no `BEGIN:VCARD` envelope is accepted as
     /// well as a full card.
-    pub fn parse(input: &'a str) -> Result<Self> {
+    pub fn parse(input: &'a str) -> TcardResult<Self> {
         if input.trim().is_empty() {
             return Ok(Self::default());
         }
@@ -86,7 +86,7 @@ impl<'a> Cards<'a> {
     }
 }
 
-impl fmt::Display for Cards<'_> {
+impl fmt::Display for TcardCards<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for card in &self.0 {
             card.fmt(f)?;
@@ -97,7 +97,7 @@ impl fmt::Display for Cards<'_> {
 }
 
 /// The byte-preserving property edits a fold-back makes to one card.
-pub trait Card {
+pub trait TcardCard {
     /// The content lines of the properties of that name, in source order.
     ///
     /// Each comes without its group prefix and its line ending.
@@ -111,7 +111,7 @@ pub trait Card {
     fn set_lines(&mut self, name: &str, lines: &[String]);
 }
 
-impl Card for VcardCst<'_> {
+impl TcardCard for VcardCst<'_> {
     fn lines(&self, name: &str) -> Vec<String> {
         props(self, name).map(ungrouped).collect()
     }

@@ -55,4 +55,4 @@ impl error::Error for TcardError {
 }
 
 /// The global `Result` alias of the library.
-pub type Result<T> = result::Result<T, TcardError>;
+pub type TcardResult<T> = result::Result<T, TcardError>;

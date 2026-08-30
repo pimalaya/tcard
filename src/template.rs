@@ -3,7 +3,7 @@
 //! The two directions between a card and the ergonomic TOML form a reader
 //! edits: projecting one out, and folding an edited one back.
 //!
-//! [`Template`] carries the cards and the version they are shown at, so the
+//! [`TcardTemplate`] carries the cards and the version they are shown at, so the
 //! tree it projects is the tree it patches. vCard has a single record type, so
 //! one card (or a blank file) flattens at the document root and two or more
 //! become `[[card]]` blocks.
@@ -33,30 +33,30 @@ use toml_edit::{DocumentMut, TableLike};
 use vcard::{tree::cst::VcardCst, version::VcardVersion};
 
 use crate::{
-    error::{Result, TcardError},
+    error::{TcardError, TcardResult},
     template::{
         line::Lines,
         model::{FIELDS, Field},
         toml::tables,
     },
-    vcard::{Card, Cards},
+    vcard::{TcardCard, TcardCards},
 };
 
 /// A vCard stream and the TOML form it is edited through.
-pub struct Template<'a> {
+pub struct TcardTemplate<'a> {
     /// The cards the form shows.
-    pub cards: Cards<'a>,
+    pub cards: TcardCards<'a>,
     /// The vCard version the form is written for.
     pub version: VcardVersion,
 }
 
-impl<'a> Template<'a> {
+impl<'a> TcardTemplate<'a> {
     /// Read a vCard stream as the form it will be edited through.
     ///
     /// The form is written at the version the first card declares, falling
     /// back to `version` for a stream declaring none.
-    pub fn parse(source: &'a str, version: VcardVersion) -> Result<Self> {
-        let cards = Cards::parse(source)?;
+    pub fn parse(source: &'a str, version: VcardVersion) -> TcardResult<Self> {
+        let cards = TcardCards::parse(source)?;
         let version = cards.version().unwrap_or(version);
 
         Ok(Self { cards, version })
@@ -82,7 +82,7 @@ impl<'a> Template<'a> {
     ///
     /// A filled `[[card]]` block updates or adds a card and an empty or absent
     /// one removes it.
-    pub fn apply(&self, edited: &str) -> Result<String> {
+    pub fn apply(&self, edited: &str) -> TcardResult<String> {
         debug!("applying {} bytes of edited TOML", edited.len());
 
         let doc: DocumentMut = edited.parse().map_err(TcardError::ParseToml)?;
@@ -216,7 +216,7 @@ mod tests {
 
     use vcard::version::VcardVersion;
 
-    use crate::template::Template;
+    use crate::template::TcardTemplate;
 
     const SAMPLE: &str = "BEGIN:VCARD\r\n\
         VERSION:4.0\r\n\
@@ -239,19 +239,19 @@ mod tests {
 
     /// Project a card at the version it declares.
     fn project(source: &str) -> String {
-        Template::parse(source, VcardVersion::V4_0)
+        TcardTemplate::parse(source, VcardVersion::V4_0)
             .unwrap()
             .project()
     }
 
     /// Project a blank scaffold at the given version.
     fn blank(version: VcardVersion) -> String {
-        Template::parse("", version).unwrap().project()
+        TcardTemplate::parse("", version).unwrap().project()
     }
 
     /// Fold an edited document back onto a card.
     fn apply(source: &str, edited: &str) -> String {
-        Template::parse(source, VcardVersion::V4_0)
+        TcardTemplate::parse(source, VcardVersion::V4_0)
             .unwrap()
             .apply(edited)
             .unwrap()

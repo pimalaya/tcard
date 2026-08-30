@@ -14,7 +14,7 @@ use crate::{
         args::{Output, SourceArg, VersionArg},
         editor::Editor,
     },
-    template::Template,
+    template::TcardTemplate,
 };
 
 /// Edit a vCard as TOML in `$EDITOR`, blank or prefilled from a source.
@@ -47,7 +47,7 @@ impl EditCommand {
     pub fn execute(self, printer: &mut impl Printer) -> Result<()> {
         let version = self.version.version.into();
         let source = self.source.load(version)?;
-        let template = Template::parse(&source, version)?;
+        let template = TcardTemplate::parse(&source, version)?;
 
         let scaffold = template.project();
         let editor = Editor {

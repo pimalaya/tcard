@@ -11,12 +11,12 @@
 //! failure is the projection's and not the generator's.
 
 use proptest::prelude::*;
-use tcard::template::Template;
+use tcard::template::TcardTemplate;
 use vcard::version::VcardVersion;
 
 /// Read a card the way the CLI does, at the version it declares.
-fn template(src: &str) -> Template<'_> {
-    Template::parse(src, VcardVersion::V4_0).unwrap()
+fn template(src: &str) -> TcardTemplate<'_> {
+    TcardTemplate::parse(src, VcardVersion::V4_0).unwrap()
 }
 
 /// Fold an untouched projection of a card back onto its own source.

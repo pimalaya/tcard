@@ -15,7 +15,7 @@ use pimalaya_cli::{clap::parsers::path_parser, printer::Printer};
 
 use crate::{
     cli::{args::Output, editor::Editor},
-    merge::Merge,
+    merge::TcardMerge,
 };
 
 /// Merge two divergent vCards against their common base, then decide the rest
@@ -48,7 +48,7 @@ impl MergeCommand {
         let local = read(&self.local)?;
         let remote = read(&self.remote)?;
 
-        let merged = Merge {
+        let merged = TcardMerge {
             base: &base,
             local: &local,
             remote: &remote,

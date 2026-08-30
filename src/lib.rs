@@ -26,17 +26,17 @@
 //!
 //! ## The projection
 //!
-//! A body is read once. [`vcard::Cards::parse`] turns a whole stream into
+//! A body is read once. [`vcard::TcardCards::parse`] turns a whole stream into
 //! vcard-rs's byte-faithful syntax tree, and every verb walks that one tree,
 //! so no value passes through a second reader that might normalise it on the
 //! way in, where no test comparing the two could see it.
 //!
-//! [`template::Template::project`] walks that tree against the static field
+//! [`template::TcardTemplate::project`] walks that tree against the static field
 //! table and writes the form. A single card flattens at the document root, two
 //! or more become `[[card]]` blocks, and what the table does not model is not
 //! shown.
 //!
-//! [`template::Template::apply`] folds an edited form back onto that same
+//! [`template::TcardTemplate::apply`] folds an edited form back onto that same
 //! tree, patching a modelled line rather than rebuilding it: only the value the
 //! document moved is written anew, and the rest of the line stays the card's
 //! own bytes, its group and the parameters the form never showed included.
@@ -83,7 +83,7 @@
 //!
 //! ## The merge
 //!
-//! [`merge::Merge`] reconciles a local and a remote card against the base
+//! [`merge::TcardMerge`] reconciles a local and a remote card against the base
 //! they both came from, then renders the outcome through the same projection,
 //! so a merge is read and edited in the form everything else is.
 //!
@@ -92,7 +92,7 @@
 //! naming its side, which makes the same TOML key appear twice.
 //!
 //! TOML forbids duplicate keys, so an undecided document does not parse.
-//! [`merge::Merged::apply`] catches that refusal and names the field left undecided
+//! [`merge::TcardMerged::apply`] catches that refusal and names the field left undecided
 //! rather than reporting a syntax error, and nothing is written until a person
 //! has deleted the line they do not want.
 //!

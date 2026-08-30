@@ -17,7 +17,7 @@
 
 use std::{fs, path::Path};
 
-use tcard::template::Template;
+use tcard::template::TcardTemplate;
 use vcard::version::VcardVersion;
 
 #[test]
@@ -42,7 +42,7 @@ fn fixtures_project_and_round_trip() {
         let vcf = fs::read_to_string(dir.join(format!("{name}.vcf"))).unwrap();
         let expected = fs::read_to_string(&path).unwrap();
 
-        let template = Template::parse(&vcf, VcardVersion::V4_0).unwrap();
+        let template = TcardTemplate::parse(&vcf, VcardVersion::V4_0).unwrap();
 
         let projected = match mode {
             "all" => template.project(),

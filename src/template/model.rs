@@ -404,7 +404,7 @@ impl Field {
 
     /// This field's content lines, built from a TOML table, without line ends.
     ///
-    /// Empty when absent or blank, so [`crate::vcard::Card::set_lines`] drops
+    /// Empty when absent or blank, so [`crate::vcard::TcardCard::set_lines`] drops
     /// it. `originals` are the card's own lines in projection order, patched
     /// not rebuilt so what the document does not write survives. An empty item
     /// leaves a `,` list, saying nothing, and holds its slot in a `;` list.

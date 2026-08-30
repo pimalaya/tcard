@@ -13,7 +13,7 @@ use anyhow::{Context, Result};
 use log::info;
 use pimalaya_cli::{printer::Printer, prompt};
 
-use crate::error::{Result as TcardResult, TcardError};
+use crate::error::{TcardError, TcardResult};
 
 /// The `$EDITOR` round trip over one TOML document.
 pub struct Editor<'a> {

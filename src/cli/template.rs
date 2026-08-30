@@ -11,7 +11,7 @@ use pimalaya_cli::{clap::parsers::path_parser, printer::Printer};
 
 use crate::{
     cli::args::{Output, SourceArg, VersionArg},
-    template::Template,
+    template::TcardTemplate,
 };
 
 /// Print a TOML template, blank or prefilled from a vCard.
@@ -33,7 +33,7 @@ impl TemplateCommand {
     pub fn execute(self, _printer: &mut impl Printer) -> Result<()> {
         let version = self.version.version.into();
         let source = self.source.load(version)?;
-        let toml = Template::parse(&source, version)?.project();
+        let toml = TcardTemplate::parse(&source, version)?.project();
 
         Output(self.output.as_deref()).write(toml.as_bytes())
     }

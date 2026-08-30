@@ -2,14 +2,14 @@
 //!
 //! Three-way merge of a vCard, projected as a TOML document to decide.
 //!
-//! [`Merge`] reconciles a local and a remote card against the base they both
+//! [`TcardMerge`] reconciles a local and a remote card against the base they both
 //! diverged from and renders the outcome through [`crate::template`], so a
 //! merge is read and edited in the form everything else is. What it settled on
 //! its own is already in that document.
 //!
 //! What it could not settle is written twice, once per side, as duplicate TOML
 //! keys. TOML forbids them, so an undecided document does not parse and
-//! [`Merged::apply`] names the field left undecided rather than a syntax
+//! [`TcardMerged::apply`] names the field left undecided rather than a syntax
 //! error. Resolving is deleting the unwanted line.
 //!
 //! Below it, choice turns a collision into the key it contests, document
@@ -37,17 +37,17 @@ use vcard::{
 };
 
 use crate::{
-    error::{Result, TcardError},
+    error::{TcardError, TcardResult},
     merge::document::Document,
     template::{
-        Template,
+        TcardTemplate,
         model::{FIELDS, Field},
     },
-    vcard::Cards,
+    vcard::TcardCards,
 };
 
 /// Two divergent cards and the base they both came from.
-pub struct Merge<'a> {
+pub struct TcardMerge<'a> {
     /// The common ancestor, as vCard text.
     pub base: &'a str,
     /// The local side of the divergence, as vCard text.
@@ -56,12 +56,12 @@ pub struct Merge<'a> {
     pub remote: &'a str,
 }
 
-impl Merge<'_> {
+impl TcardMerge<'_> {
     /// Merge the three cards into a document to decide.
     ///
     /// Only the first card of each side is merged: a merge projects one card,
     /// and its callers hand over one card per body.
-    pub fn project(self) -> Result<Merged> {
+    pub fn project(self) -> TcardResult<TcardMerged> {
         let base = read(self.base, "base")?;
         let local = read(self.local, "local")?;
         let remote = read(self.remote, "remote")?;
@@ -75,15 +75,15 @@ impl Merge<'_> {
         debug!("merged with {} collision(s)", report.conflicts.len());
 
         let version = report.merged.version();
-        let template = Template {
-            cards: Cards(vec![report.merged.clone()]),
+        let template = TcardTemplate {
+            cards: TcardCards(vec![report.merged.clone()]),
             version,
         };
 
         let mut document = Document::new(&template.project());
         document.decorate(&base, &report, VcardEscaper::for_version(version));
 
-        Ok(Merged {
+        Ok(TcardMerged {
             vcard: report.merged.to_string(),
             toml: document.into_string(),
         })
@@ -91,8 +91,8 @@ impl Merge<'_> {
 }
 
 /// A merged card, and the document deciding what the merge could not.
-pub struct Merged {
-    /// The merged card, the source [`Merged::apply`] patches.
+pub struct TcardMerged {
+    /// The merged card, the source [`TcardMerged::apply`] patches.
     ///
     /// Every field the merge settled is already written into it.
     pub vcard: String,
@@ -100,15 +100,15 @@ pub struct Merged {
     pub toml: String,
 }
 
-impl Merged {
+impl TcardMerged {
     /// Fold an edited merge document back onto the merged card.
     ///
     /// A collision left as written holds the same key twice, which TOML
     /// refuses: that parse error is reported as the field left undecided, so
     /// the reader is told what to resolve instead of being shown a syntax
     /// error.
-    pub fn apply(&self, edited: &str) -> Result<String> {
-        let template = Template::parse(&self.vcard, VcardVersion::V4_0)?;
+    pub fn apply(&self, edited: &str) -> TcardResult<String> {
+        let template = TcardTemplate::parse(&self.vcard, VcardVersion::V4_0)?;
 
         template.apply(edited).map_err(|err| undecided(err, edited))
     }
@@ -144,7 +144,7 @@ pub(crate) fn field_of(name: &str) -> Option<&'static Field> {
 }
 
 /// Read one side of a merge as a syntax tree, named by the side it is.
-fn read<'a>(text: &'a str, side: &'static str) -> Result<VcardCst<'a>> {
+fn read<'a>(text: &'a str, side: &'static str) -> TcardResult<VcardCst<'a>> {
     VcardCst::parse(text).map_err(|err| TcardError::ReadCard {
         side,
         message: err.to_string(),
@@ -176,15 +176,15 @@ mod tests {
 
     use crate::{
         error::TcardError,
-        merge::{Merge, Merged},
+        merge::{TcardMerge, TcardMerged},
     };
 
     fn card(props: &str) -> String {
         format!("BEGIN:VCARD\r\nVERSION:4.0\r\n{props}END:VCARD\r\n")
     }
 
-    fn merge(base: &str, local: &str, remote: &str) -> Merged {
-        Merge {
+    fn merge(base: &str, local: &str, remote: &str) -> TcardMerged {
+        TcardMerge {
             base,
             local,
             remote,
@@ -322,7 +322,7 @@ mod tests {
     fn an_unreadable_side_is_named() {
         let base = card("FN:Jane\r\n");
 
-        let Err(err) = (Merge {
+        let Err(err) = (TcardMerge {
             base: &base,
             local: &base,
             remote: "not a vCard at all",

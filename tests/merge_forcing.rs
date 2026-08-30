@@ -22,7 +22,7 @@
 use proptest::prelude::*;
 use tcard::{
     error::TcardError,
-    merge::{Merge, Merged},
+    merge::{TcardMerge, TcardMerged},
 };
 
 /// One property a merge can put to a reader: how to spell it in a card, the
@@ -282,8 +282,8 @@ proptest! {
 }
 
 /// Merge three cards into the document a reader decides.
-fn merge(base: &str, local: &str, remote: &str) -> Merged {
-    Merge {
+fn merge(base: &str, local: &str, remote: &str) -> TcardMerged {
+    TcardMerge {
         base,
         local,
         remote,
