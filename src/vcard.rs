@@ -23,7 +23,10 @@ use alloc::{
 };
 
 use vcard::{
-    tree::{cst::VcardCst, leaf::VcardLeaf, line::VcardLine, param::node::VcardParamNode},
+    tree::{
+        codec::mode::VcardEscaper, cst::VcardCst, leaf::VcardLeaf, line::VcardLine,
+        param::node::VcardParamNode,
+    },
     version::VcardVersion,
 };
 
@@ -47,8 +50,10 @@ impl<'a> Cards<'a> {
         card.version_line().map(|_| card.version())
     }
 
-    /// Make the stream hold exactly `count` cards: append empty ones, or drop
-    /// the surplus from the back so the ones before it keep their bytes.
+    /// Make the stream hold exactly `count` cards.
+    ///
+    /// Empty ones are appended, and a surplus is dropped from the back so the
+    /// ones before it keep their bytes.
     pub fn set_count(&mut self, count: usize) {
         let eol = self.0.first().map(eol_of).unwrap_or_else(crlf);
 
@@ -70,8 +75,10 @@ impl fmt::Display for Cards<'_> {
     }
 }
 
-/// Parse a whole vCard stream. A bare RFC 2425 record with no `BEGIN:VCARD`
-/// envelope is accepted as well as a full card.
+/// Parse a whole vCard stream.
+///
+/// A bare RFC 2425 record with no `BEGIN:VCARD` envelope is accepted as well
+/// as a full card.
 pub fn parse(input: &str) -> Result<Cards<'_>> {
     if input.trim().is_empty() {
         return Ok(Cards::default());
@@ -91,17 +98,16 @@ pub fn parse(input: &str) -> Result<Cards<'_>> {
 
 /// The byte-preserving property edits a fold-back makes to one card.
 pub trait Card {
-    /// The logical content lines of the properties of that name, in source
-    /// order, each without its group prefix and its line ending.
+    /// The content lines of the properties of that name, in source order.
+    ///
+    /// Each comes without its group prefix and its line ending.
     fn lines(&self, name: &str) -> Vec<String>;
 
-    /// Make those properties exactly `lines`: an unchanged one keeps its own
-    /// bytes, a surplus one is dropped, a missing one is appended. An empty
-    /// slice removes them all.
+    /// Make those properties exactly `lines`.
     ///
-    /// A reused line keeps the group it carried, a property being addressed by
-    /// its bare name, so a grouped one is rewritten in place rather than
-    /// doubled by a group-less copy.
+    /// Unchanged keeps its bytes, surplus is dropped, missing is appended,
+    /// empty removes all. A property is addressed by its bare name, so a
+    /// reused line keeps its group rather than being doubled group-less.
     fn set_lines(&mut self, name: &str, lines: &[String]);
 }
 
@@ -147,8 +153,10 @@ fn props<'c, 'a>(card: &'c VcardCst<'a>, name: &str) -> impl Iterator<Item = &'c
     card.props.iter().filter(move |line| named(line, name))
 }
 
-/// The logical content line a property occupies: its name, its parameters and
-/// its value, without the line ending or the folds it was written with.
+/// The logical content line a property occupies.
+///
+/// Its name, its parameters and its value, without the line ending or the
+/// folds it was written with.
 fn logical(line: &VcardLine<'_>) -> String {
     let mut out = String::from(line.name.get());
 
@@ -162,14 +170,17 @@ fn logical(line: &VcardLine<'_>) -> String {
     out
 }
 
-/// Whether a property carries that name, which vCard compares without regard
-/// to case and beneath any group prefix (RFC 6350 section 3.3).
+/// Whether a property carries that name.
+///
+/// vCard compares a name without regard to case and beneath any group prefix
+/// (RFC 6350 section 3.3).
 fn named(line: &VcardLine<'_>, name: &str) -> bool {
     bare(line.name.get()).eq_ignore_ascii_case(name)
 }
 
-/// The same line without its group prefix (`item1.EMAIL:a` gives `EMAIL:a`),
-/// which is the form a document reads and writes back.
+/// The same line without its group prefix, the form a document reads back.
+///
+/// `item1.EMAIL:a` gives `EMAIL:a`.
 fn ungrouped(line: &VcardLine<'_>) -> String {
     let logical = logical(line);
     let group = group_of(line.name.get()).map_or(0, str::len);
@@ -212,6 +223,7 @@ fn param(text: &str) -> VcardParamNode<'static> {
     VcardParamNode {
         name: VcardLeaf(Cow::Owned(name.to_owned())),
         values,
+        escaper: VcardEscaper::default(),
     }
 }
 

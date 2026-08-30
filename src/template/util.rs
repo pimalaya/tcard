@@ -50,8 +50,10 @@ pub fn escape(value: &str) -> String {
     out
 }
 
-/// Undo that escaping, the inverse of [`escape`]: what a card wrote as `\,` is
-/// a comma, and either spelling of an escaped newline is one.
+/// Undo that escaping, the inverse of [`escape`].
+///
+/// What a card wrote as `\,` is a comma, and either spelling of an escaped
+/// newline is one.
 pub fn unescape(value: &str) -> String {
     let mut out = String::with_capacity(value.len());
     let mut chars = value.chars();
@@ -72,8 +74,7 @@ pub fn unescape(value: &str) -> String {
     out
 }
 
-/// The TOML tables addressed by an array-of-tables (`[[key]]`) or an inline
-/// array of inline tables.
+/// The TOML tables `[[key]]` or an inline array of inline tables addresses.
 pub fn tables(item: &Item) -> Vec<&dyn TableLike> {
     if let Some(array) = item.as_array_of_tables() {
         array.iter().map(|table| table as &dyn TableLike).collect()
@@ -109,12 +110,11 @@ pub fn types(line: &str) -> String {
     patch::types(line).join(",")
 }
 
-/// Read named components from a TOML table, escaped and in order, each
-/// positional slot preserved.
+/// Read named components from a TOML table, escaped and in order.
 ///
-/// A component the document does not write is one the version hides
-/// (`pobox`, `ext` in vCard 4.0), so it is taken from the line the value came
-/// from: hiding a component from the form is not licence to drop it.
+/// Each positional slot is preserved. A component the document does not write
+/// is one the version hides (`pobox`, `ext` in vCard 4.0), so it is taken from
+/// the line the value came from: hiding one is not licence to drop it.
 pub fn read_components(
     table: &dyn TableLike,
     components: &[(&str, Option<&str>, bool)],

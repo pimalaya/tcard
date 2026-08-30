@@ -26,12 +26,11 @@ pub fn value(line: &str) -> &str {
     line.get(colon(line) + 1..).unwrap_or_default()
 }
 
-/// The prefix a folded-back line carries: the bare property name when the
-/// line is new, else the original's name and parameters with its `TYPE`
-/// replaced by the one the document writes.
+/// The prefix a folded-back line carries.
 ///
-/// `types` is `None` for a property whose projection shows no type, which
-/// leaves the original's parameters exactly as they were.
+/// The bare property name when the line is new, else the original's name and
+/// parameters with its `TYPE` replaced by the document's. A `None` `types`
+/// leaves those parameters as they were, the projection showing no type.
 pub fn rewritten(original: Option<&str>, name: &str, types: Option<&str>) -> String {
     let Some(original) = original else {
         return match types.filter(|types| !types.is_empty()) {
@@ -69,11 +68,11 @@ pub fn rewritten(original: Option<&str>, name: &str, types: Option<&str>) -> Str
     out
 }
 
-/// The `TYPE` values a line carries, in source order, a bare vCard 2.1 type
-/// parameter (`;WORK`) included.
+/// The `TYPE` values a line carries, in source order.
 ///
-/// This is the grammar [`rewritten`] writes a type back with, so what the
-/// projection shows and what a fold-back compares against agree.
+/// A bare vCard 2.1 type parameter (`;WORK`) counts. This is the grammar
+/// [`rewritten`] writes a type back with, so what the projection shows and
+/// what a fold-back compares against agree.
 pub fn types(line: &str) -> Vec<&str> {
     split(prefix(line), ';')
         .iter()
@@ -83,8 +82,9 @@ pub fn types(line: &str) -> Vec<&str> {
         .collect()
 }
 
-/// Split a value into the items `sep` separates, an escaped separator (RFC
-/// 6350 section 3.4) belonging to the item it sits in.
+/// Split a value into the items `sep` separates.
+///
+/// An escaped separator (RFC 6350 section 3.4) belongs to the item it sits in.
 pub fn items(value: &str, sep: char) -> Vec<&str> {
     let mut out = Vec::new();
     let mut escaped = false;
@@ -105,8 +105,9 @@ pub fn items(value: &str, sep: char) -> Vec<&str> {
     out
 }
 
-/// Where the colon ending a line's name and parameters sits, one inside a
-/// quoted parameter value (`GEO="geo:1,2"`) not counting.
+/// Where the colon ending a line's name and parameters sits.
+///
+/// One inside a quoted parameter value (`GEO="geo:1,2"`) does not count.
 fn colon(line: &str) -> usize {
     let mut quoted = false;
 
@@ -142,8 +143,10 @@ pub fn split(text: &str, sep: char) -> Vec<&str> {
     out
 }
 
-/// The values a parameter carries when it is a `TYPE`, a bare vCard 2.1 type
-/// parameter (`;WORK`) included; `None` for any other parameter.
+/// The values a parameter carries when it is a `TYPE`.
+///
+/// A bare vCard 2.1 type parameter (`;WORK`) counts, and any other parameter
+/// gives `None`.
 fn type_of(param: &str) -> Option<Vec<&str>> {
     let Some((name, values)) = param.split_once('=') else {
         return Some(vec![param]);
@@ -157,9 +160,10 @@ fn type_of(param: &str) -> Option<Vec<&str>> {
     })
 }
 
-/// Whether a line's parameters already spell exactly the types the document
-/// writes, which is what lets an unchanged line keep its bytes. vCard
-/// compares parameter values case-insensitively, so the spellings may differ.
+/// Whether a line's parameters already spell the types the document writes.
+///
+/// This is what lets an unchanged line keep its bytes. vCard compares
+/// parameter values case-insensitively, so the spellings may differ.
 fn carries(params: &[&str], types: &str) -> bool {
     let held: Vec<&str> = params
         .iter()
@@ -201,8 +205,8 @@ mod tests {
 
     #[test]
     fn an_unchanged_type_keeps_the_original_bytes() {
-        // A quoted list, one parameter per type, and the bare vCard 2.1 form
-        // all spell the same types, whatever their case.
+        // NOTE: a quoted list, one parameter per type and the bare vCard 2.1
+        // form all spell the same types, whatever their case.
         for original in [
             "TEL;VALUE=uri;TYPE=\"work,voice\";PREF=1:x",
             "TEL;VALUE=uri;type=WORK;type=Voice;PREF=1:x",

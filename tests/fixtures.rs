@@ -1,16 +1,19 @@
-//! Golden fixture tests over real-world and crafted vCards.
+//! # Golden fixtures
 //!
-//! Each `tests/data/<name>.<mode>.toml` is the expected projection of
-//! `tests/data/<name>.vcf` for `<mode>` (`all` projects the whole file: a
-//! single card flat at the root, two or more as `[[card]]` blocks). To add a
-//! case (e.g. from a bug report), drop the `.vcf` in and generate the `.toml`
-//! with `tcard template`.
+//! Projection and round trip over the real-world and crafted vCards in
+//! tests/data.
+//!
+//! Each name.mode.toml is the expected projection of name.vcf, the `all` mode
+//! projecting the whole file: one card flat at the root, two or more as
+//! `[[card]]` blocks. CONTRIBUTING.md carries the steps for adding a case.
 //!
 //! Projection is deterministic, so equality is asserted for every fixture.
-//! Round-trip is checked only for fixtures whose source is already in
-//! the reader's canonical form (no `.lossy` marker file): real exports often
-//! reorder structured components or drop unmodeled parameters on read, which
-//! apply then canonicalises, so byte-exact round-trip is not expected there.
+//! Round trip is asserted only where the source is already in the reader's
+//! canonical form, which a name.lossy marker denies.
+//!
+//! A real export often reorders structured components or drops an unmodeled
+//! parameter on read, which apply then canonicalises, so a byte-exact round
+//! trip is not expected there.
 
 use std::{fs, path::Path};
 
@@ -52,8 +55,8 @@ fn fixtures_project_and_round_trip() {
             path.display()
         );
 
-        // Untouched, the projection folds back onto the source byte-for-byte,
-        // unless the source is flagged `.lossy` (apply canonicalises it).
+        // NOTE: a `.lossy` marker says the source is not in the form a
+        // fold-back writes, so only the projection is asserted there.
         if !dir.join(format!("{name}.lossy")).exists() {
             let round_trip = tcard::template::apply(&vcf, &expected).unwrap();
             assert_eq!(round_trip, vcf, "round-trip mismatch: {}", path.display());

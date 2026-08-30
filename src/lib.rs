@@ -61,10 +61,9 @@
 //! `TYPE`, and a typed structured one is both.
 //!
 //! A structured component can be deprecated, which RFC 6350 does to `ADR`'s
-//! post office box and its extended address. Such a component is hidden from
-//! a vCard 4.0 scaffold and flagged in older versions, and on apply it keeps
-//! its positional slot and is written back from the card's own line: hiding a
-//! component is no licence to drop it.
+//! post office box and extended address: hidden from a vCard 4.0 scaffold,
+//! flagged in older versions, and on apply written back from the card's own
+//! line into its slot, since hiding a component is no licence to drop it.
 //!
 //! `UID` and `VERSION` are deliberately absent. They are app-managed, seeded
 //! for a new card and preserved for every other one.
@@ -118,15 +117,13 @@
 //!
 //! The tests/data directory is a regression database of real and crafted
 //! cards, checked by tests/fixtures.rs. Each `<name>.<mode>.toml` is the
-//! expected projection of `<name>.vcf`, and the runner also asserts a
-//! byte-exact round trip unless a `<name>.lossy` marker says the source is
-//! not already in the form a fold-back writes.
+//! expected projection of `<name>.vcf`, round-tripped byte-exact unless a
+//! `<name>.lossy` marker says the source is not in a fold-back's own form.
 //!
-//! The imported cards come from real apps through the ez-vcard test corpus,
-//! covering Gmail, Evolution and MS Outlook 2.1, and through the calcard
-//! parser's own corpus, alongside the RFC 6350 example and an Apple-style
-//! export. Every one of those is lossy; clean and two_cards are crafted to
-//! round trip byte-exact.
+//! The imported cards come from the ez-vcard corpus (Gmail, Evolution, MS
+//! Outlook 2.1) and the calcard parser's own, alongside the RFC 6350 example
+//! and an Apple-style export. Every one of those is lossy; clean and
+//! two_cards are crafted to round trip byte-exact.
 //!
 //! A real-world export is the most valuable case, so adding one is the
 //! fastest way to turn a bug report into a regression test. CONTRIBUTING.md

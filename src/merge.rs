@@ -4,20 +4,22 @@
 //!
 //! [`project`] merges a local and a remote card against the base they both
 //! diverged from, then renders the outcome through [`crate::template`], so a
-//! merge is read and edited in the same ergonomic form as everything else. What
-//! the merge settled on its own is already in that document. What it could not
-//! settle is written twice, once per side, as duplicate TOML keys: TOML forbids
-//! them, so an undecided document does not parse and [`apply`] refuses it,
-//! naming the field left undecided rather than reporting a syntax error.
-//! Resolving is deleting the line that is not wanted, or replacing both with a
-//! value of one's own.
+//! merge is read and edited in the form everything else is. What the merge
+//! settled on its own is already in that document.
+//!
+//! What it could not settle is written twice, once per side, as duplicate TOML
+//! keys. TOML forbids them, so an undecided document does not parse and
+//! [`apply`] names the field left undecided rather than a syntax error.
+//! Resolving is deleting the unwanted line, or replacing both with one's own.
 //!
 //! Only a genuine choice is written that way. A removal meeting an update is
 //! already decided (the update wins, whichever side it came from), and a
-//! collision the projection does not surface has no key to contest, so both are
-//! said in a comment at the top of the document instead. So is an instance the
-//! merge paired by position rather than by `PID`, since the pairing behind the
-//! choice may be the wrong one and only the reader can see that.
+//! collision the projection does not surface has no key to contest, so both
+//! are said in a comment at the top of the document instead.
+//!
+//! So is an instance the merge paired by position rather than by `PID`, since
+//! the pairing behind the choice may be the wrong one and only the reader can
+//! see that.
 //!
 //! A list both sides edited is said there too. Its items merge as a set, which
 //! is right for a value RFC 6350 gives no order to, so there is nothing to
@@ -59,22 +61,23 @@ use crate::{
 /// The column a header comment wraps at, its `# ` prefix included.
 const WRAP: usize = 66;
 
-/// A merged card ready to be decided: the vCard an edited document folds back
-/// onto, and that document.
+/// A merged card ready to be decided.
+///
+/// The vCard an edited document folds back onto, and that document.
 pub struct Merged {
-    /// The merged card, the source [`apply`] patches: every field the merge
-    /// settled is already written into it.
+    /// The merged card, the source [`apply`] patches.
+    ///
+    /// Every field the merge settled is already written into it.
     pub vcard: String,
-    /// The TOML projection of the merged card, each undecided collision
-    /// written as duplicate keys.
+    /// The projection of that card, each undecided collision written twice.
     pub toml: String,
 }
 
-/// Merge a local and a remote card against their common base, and project the
-/// result as a TOML document to decide.
+/// Merge a local and a remote card against their common base.
 ///
-/// Only the first card of each input is merged: a merge projects one card, and
-/// the callers of a merge hand over one card per body.
+/// The result is projected as a TOML document to decide. Only the first card
+/// of each input is merged: a merge projects one card, and its callers hand
+/// over one card per body.
 pub fn project(base: &str, local: &str, remote: &str) -> Result<Merged> {
     let base = read(base, "base")?;
     let local = read(local, "local")?;
@@ -117,9 +120,10 @@ fn read<'a>(text: &'a str, side: &'static str) -> Result<VcardCst<'a>> {
     })
 }
 
-/// Rewrite a duplicate-key parse error into the key it leaves undecided. The
-/// key is read back from the edited buffer at the span the parser refused,
-/// since the error itself only says that a key repeats.
+/// Rewrite a duplicate-key parse error into the key it leaves undecided.
+///
+/// The key is read back from the edited buffer at the span the parser
+/// refused, since the error itself only says that a key repeats.
 fn undecided(err: TcardError, edited: &str) -> TcardError {
     let TcardError::ParseToml(parse) = &err else {
         return err;
@@ -135,13 +139,12 @@ fn undecided(err: TcardError, edited: &str) -> TcardError {
     }
 }
 
-/// Decorate a projected document with what the merge could not settle on its
-/// own: an undecided collision replaces the line it contests, everything else
-/// is said in the header comment.
+/// Decorate a projected document with what the merge could not settle.
 ///
-/// A key the document writes once is contested once, however many of its
-/// parts the report reported, so a further collision on it is neither a
-/// second choice nor a note.
+/// An undecided collision replaces the line it contests, everything else is
+/// said in the header comment. A key the document writes once is contested
+/// once, however many parts the report reported, so a further collision on it
+/// is neither a second choice nor a note.
 fn decorate(
     toml: String,
     base: &VcardCst<'_>,
@@ -182,8 +185,8 @@ fn decorate(
 
     note_unions(&mut notes, report);
 
-    // The contested lines are rewritten from the bottom up, so an earlier
-    // index stays the one that was located.
+    // NOTE: the contested lines are rewritten from the bottom up, so an
+    // earlier index stays the one that was located.
     choices.sort_by_key(|(at, _)| *at);
     for (at, choice) in choices.iter().rev() {
         lines.splice(at..=at, render(choice));
@@ -199,8 +202,10 @@ fn decorate(
     out
 }
 
-/// One collision the reader has to decide: a projected key, the ancestor value
-/// commented above it, and the value each side proposes for it.
+/// One collision the reader has to decide.
+///
+/// A projected key, the ancestor value commented above it, and the value each
+/// side proposes for it.
 struct Choice {
     /// The field the contested key belongs to, which says where to look for it.
     field: &'static Field,
@@ -216,9 +221,10 @@ struct Choice {
     remote: String,
 }
 
-/// The collision as a decidable choice on one projected key, or `None` when
-/// the merge already decided it (a removal against an update) or when the
-/// projection holds no key to contest.
+/// The collision as a decidable choice on one projected key.
+///
+/// `None` when the merge already decided it (a removal against an update) or
+/// when the projection holds no key to contest.
 fn choice(
     base: &VcardCst<'_>,
     report: &VcardMergeReport<'_>,
@@ -257,14 +263,13 @@ fn choice(
     })
 }
 
-/// The ancestor a contested addition stands over: the instance both sides
-/// took away and each then wrote anew.
+/// The ancestor a contested addition stands over.
 ///
-/// A property whose identity is its own value cannot be seen to change, so
-/// vcard-rs reports such an edit as a departure and an arrival. Two arrivals
-/// collide only over a departure both sides agreed on, and that departed
-/// instance is the ancestor the document comments above the choice; reading
-/// the arrival alone would say the field came from nothing.
+/// It is the instance both sides took away and each then wrote anew. A
+/// property whose identity is its own value cannot be seen to change, so
+/// vcard-rs reports such an edit as a departure and an arrival, and two
+/// arrivals collide only over a departure both sides agreed on. Reading the
+/// arrival alone would say the field came from nothing.
 fn vacated<'r, 'a>(
     report: &'r VcardMergeReport<'a>,
     at: &VcardPropPath<'_>,
@@ -300,14 +305,12 @@ fn vacated<'r, 'a>(
         .then_some(value)
 }
 
-/// The collision on a list field the merge reported one component at a time
-/// (`ORG`), as one choice on the whole array; `None` for any other field or
-/// any other pair of actions.
+/// A list collision reported one component at a time, as one whole choice.
 ///
-/// The document writes such a field as a single key, so the reader can decide
-/// it. Reporting each component apart and then finding no key for it would
-/// demote a collision in plain sight to a note saying a part they cannot see
-/// was contested.
+/// `None` for any other field or pair of actions. The document writes such a
+/// field (`ORG`) as a single key, so the reader can decide it: reporting each
+/// component apart and finding no key for it would demote a collision in
+/// plain sight to a note about a part they cannot see.
 fn list_choice(
     base: &VcardCst<'_>,
     report: &VcardMergeReport<'_>,
@@ -334,7 +337,7 @@ fn list_choice(
         .nth(at.index)?;
 
     let ancestor: Vec<String> = (0..line.value.component_count())
-        .map(|component| line.value.decode_at(component).join(","))
+        .map(|component| line.value.decode_component_list(component).join(","))
         .collect();
 
     let moved = |actions: &[VcardMergeAction<'_>]| {
@@ -375,14 +378,12 @@ fn list_choice(
     })
 }
 
-/// The key an action addresses in the projection, with the ancestor value and
-/// the value the action proposes, both as TOML right-hand sides.
+/// The key an action addresses in the projection, with two values for it.
 ///
-/// A structured value decomposes here: the merge reports which `;`-component
-/// moved, and each component is one projected key, so a collision inside an
-/// address contests that one key rather than the whole table. An action with
-/// no projected key at all (a removal, an unmodeled parameter, a list item
-/// both sides can keep) has nothing to contest.
+/// The ancestor and the proposal, both as TOML right-hand sides. A structured
+/// value decomposes here, each `;`-component being one projected key, so a
+/// collision inside an address contests that key rather than the whole table.
+/// An action with no projected key at all has nothing to contest.
 fn addressed(
     field: &'static Field,
     action: &VcardMergeAction<'_>,
@@ -448,6 +449,7 @@ fn path<'p, 'a>(action: &'p VcardMergeAction<'a>) -> &'p VcardPropPath<'a> {
 }
 
 /// The modeled field a property name projects to, its group prefix stripped.
+///
 /// An unmodeled property (a custom `X-*`, a vendor extension) has none: it is
 /// kept verbatim but never shown, so a collision on it cannot be contested.
 fn field_of(name: &str) -> Option<&'static Field> {
@@ -458,9 +460,10 @@ fn field_of(name: &str) -> Option<&'static Field> {
         .find(|field| field.name.eq_ignore_ascii_case(name))
 }
 
-/// The key a whole-value change addresses: the field's own key for a bare
-/// field, the value key of an instance for a typed one. A structured value has
-/// none, its keys being its components.
+/// The key a whole-value change addresses.
+///
+/// The field's own key for a bare field, the value key of an instance for a
+/// typed one. A structured value has none, its keys being its components.
 fn value_key(field: &Field) -> Option<&'static str> {
     match field.kind {
         Kind::Scalar | Kind::Date | Kind::List { .. } => Some(field.key),
@@ -485,30 +488,31 @@ fn type_values<'p, 'a>(param: &'p VcardParam<'a>) -> Option<&'p [Cow<'a, str>]> 
     }
 }
 
-/// A whole value as the right-hand side the projection writes for this field:
-/// an array for a list field, a native date for a date field, a quoted string
+/// A whole value as the right-hand side the projection writes for the field.
+///
+/// An array for a list field, a native date for a date field, a quoted string
 /// everywhere else.
 fn value_rhs(field: &Field, value: &VcardValue<'_>, escaper: VcardEscaper) -> String {
     let node = value.encode(escaper);
 
     match field.kind {
-        Kind::List { .. } => toml_array(&node.decode_at(0)),
-        Kind::Date => date_rhs(&node.decode_joined_at(0)),
+        Kind::List { .. } => toml_array(&node.decode_component_list(0)),
+        Kind::Date => date_rhs(&node.decode_component(0)),
         // NOTE: the whole value, not its first `;`-component. A well-formed
         // text value escapes its semicolons and so has one component either
         // way; one that does not is shown as it is rather than cut short.
-        _ => toml_str(&node.decode_joined()),
+        _ => toml_str(&node.decode()),
     }
 }
 
-/// The values of one component or one list parameter as a single quoted
-/// string, the form the projection writes them in.
+/// One component or list parameter, quoted the way the projection writes it.
 fn joined_rhs(values: &[Cow<'_, str>]) -> String {
     toml_str(&values.join(","))
 }
 
-/// The right-hand side of a field carrying nothing, which is also how the
-/// projection writes an absent one.
+/// The right-hand side of a field carrying nothing.
+///
+/// It is also how the projection writes an absent one.
 fn empty_rhs(field: &Field) -> String {
     match field.kind {
         Kind::List { .. } => toml_array::<&str>(&[]),
@@ -516,20 +520,22 @@ fn empty_rhs(field: &Field) -> String {
     }
 }
 
-/// The line a choice contests in the projected document: a bare key at the
-/// document root, else the key inside the block of the instance the report
-/// indexes. Lines already contested by another choice are skipped, and a key
-/// the version hides (a deprecated component) is not there to be found.
+/// The line a choice contests in the projected document.
 ///
-/// That index is the instance's position in the *base* card, and the document
-/// projects the merged one, so the two agree only while the pairing behind
-/// them was positional. The block it names is therefore taken only when it
-/// holds the value the merge kept, which is the local one wherever a choice
-/// is rendered at all; failing that the search falls back to the first block
-/// holding that value, then to the first block holding the key.
+/// A bare key at the document root, else the key inside the block of the
+/// instance the report indexes. A line another choice already contests is
+/// skipped, and a key the version hides (a deprecated component) is not there
+/// to be found.
+///
+/// That index is the instance's position in the *base* card while the
+/// document projects the merged one, so the two agree only where the pairing
+/// was positional. The named block is therefore taken only when it holds the
+/// value the merge kept, the local one wherever a choice is rendered at all,
+/// falling back to the first block holding that value, then the first holding
+/// the key.
 fn locate(lines: &[String], choice: &Choice, taken: &[usize]) -> Option<usize> {
     let headers = match choice.field.kind {
-        // Bare keys lead the document, before the first section header.
+        // NOTE: bare keys lead the document, before the first section header.
         Kind::Scalar | Kind::Date | Kind::List { .. } => {
             return find_key(lines, 0, choice.key, taken);
         }
@@ -565,8 +571,9 @@ fn locate(lines: &[String], choice: &Choice, taken: &[usize]) -> Option<usize> {
     first
 }
 
-/// The index of the line writing `key`, searched from `from` up to the end of
-/// its block (the next section header).
+/// The index of the line writing `key`, searched from `from`.
+///
+/// The search stops at the end of the block, the next section header.
 fn find_key(lines: &[String], from: usize, key: &str, taken: &[usize]) -> Option<usize> {
     lines
         .iter()
@@ -587,26 +594,26 @@ fn headers(lines: &[String], header: &str) -> Vec<usize> {
         .collect()
 }
 
-/// The right-hand side a line writes for `key`, or `None` when it writes
-/// another key.
+/// The right-hand side a line writes for `key`, `None` for another key.
 fn rhs<'l>(line: &'l str, key: &str) -> Option<&'l str> {
     let rest = lhs(line).strip_prefix(key)?.trim_start();
     Some(rest.strip_prefix('=')?.trim_start())
 }
 
-/// A line without its aligned inline hint, which is set off by a tab (a TOML
-/// value never carries a raw one, so the split is unambiguous).
+/// A line without its aligned inline hint, which a tab sets off.
+///
+/// A TOML value never carries a raw tab, so the split is unambiguous.
 fn lhs(line: &str) -> &str {
     line.split('\t').next().unwrap_or(line).trim_end()
 }
 
-/// The lines replacing the contested one: the ancestor commented above, then
-/// one live line per side, each naming its side. Two live lines of one key are
-/// what makes the document refuse to parse until one of them is gone.
+/// The lines replacing the contested one.
 ///
-/// The ancestor is commented because keeping it is never the resolution of a
-/// collision, both sides having moved away from it; and it is left out
-/// entirely when it says nothing, the field having been empty.
+/// The ancestor commented above, then one live line per side, each naming its
+/// side: two live lines of one key are what makes the document refuse to parse
+/// until one is gone. The ancestor is commented because keeping it is never a
+/// resolution, both sides having moved away from it, and left out entirely
+/// when the field was empty and it says nothing.
 fn render(choice: &Choice) -> Vec<String> {
     let mut lines = vec!["# conflict, keep one line".to_owned()];
 
@@ -620,9 +627,10 @@ fn render(choice: &Choice) -> Vec<String> {
     lines
 }
 
-/// What the header says about a collision the document puts no choice on: a
-/// removal the merge already decided in favour of the update, or a field the
-/// projection does not show, where the local value was kept.
+/// What the header says about a collision the document puts no choice on.
+///
+/// A removal the merge already decided in favour of the update, or a field
+/// the projection does not show, where the local value was kept.
 fn note(conflict: &VcardMergeConflict<'_>) -> String {
     let label = label(&conflict.left);
 
@@ -637,13 +645,12 @@ fn note(conflict: &VcardMergeConflict<'_>) -> String {
     }
 }
 
-/// Say in the header every list both sides edited, since the merge keeps the
-/// items of both and reports no conflict for them.
+/// Say in the header every list both sides edited.
 ///
-/// Merging items as a set is right for a value RFC 6350 gives no order to: two
-/// sides each adding a nickname should keep both, and asking a reader to choose
-/// between them would be wrong. Saying nothing is what is wrong, since the
-/// merged value is then one neither side wrote and nobody was told.
+/// The merge keeps the items of both and reports no conflict, which is right
+/// for a value RFC 6350 gives no order to: two sides each adding a nickname
+/// should keep both, and asking a reader to choose would be wrong. Saying
+/// nothing is what would be, the merged value being one neither side wrote.
 fn note_unions(notes: &mut Vec<String>, report: &VcardMergeReport<'_>) {
     for action in &report.left {
         let Some((at, param)) = edited_items(action) else {
@@ -662,8 +669,10 @@ fn note_unions(notes: &mut Vec<String>, report: &VcardMergeReport<'_>) {
     }
 }
 
-/// The list an action edited: the instance it belongs to, and the parameter's
-/// name when it is a list parameter rather than the value itself.
+/// The list an action edited, and the instance it belongs to.
+///
+/// The parameter's name comes with it when it is a list parameter rather than
+/// the value itself.
 fn edited_items<'p, 'a>(
     action: &'p VcardMergeAction<'a>,
 ) -> Option<(&'p VcardPropPath<'a>, Option<&'p str>)> {
@@ -686,9 +695,10 @@ fn union_note(label: &str, param: Option<&str>) -> String {
     }
 }
 
-/// What the header says when the two sides' instances were paired by position:
-/// the base card holds several properties of that name and this one carries no
-/// `PID`, so the pairing rests on order alone and may well have brought
+/// What the header says when two instances were paired by position.
+///
+/// The base card holds several properties of that name and this one carries
+/// no `PID`, so the pairing rests on order alone and may well have brought
 /// together what the reader thinks of as two different phone numbers.
 fn pairing_note(base: &VcardCst<'_>, conflict: &VcardMergeConflict<'_>) -> Option<String> {
     let at = path(&conflict.left);
@@ -718,8 +728,7 @@ fn pairing_note(base: &VcardCst<'_>, conflict: &VcardMergeConflict<'_>) -> Optio
     ))
 }
 
-/// How a property is named in a note: by its TOML key when the document shows
-/// it, by its vCard name otherwise.
+/// How a note names a property: its TOML key, else its vCard name.
 fn label(action: &VcardMergeAction<'_>) -> String {
     let name = &path(action).name;
 
@@ -743,8 +752,9 @@ fn header(notes: &[String]) -> Vec<String> {
     lines
 }
 
-/// One comment paragraph wrapped at [`WRAP`], a continuation line of a bullet
-/// indented under its text.
+/// One comment paragraph wrapped at [`WRAP`].
+///
+/// A continuation line of a bullet is indented under its text.
 fn comment(text: &str) -> Vec<String> {
     let indent = if text.starts_with("- ") { "  " } else { "" };
     let mut lines = Vec::new();
@@ -788,8 +798,9 @@ mod tests {
         format!("BEGIN:VCARD\r\nVERSION:4.0\r\n{props}END:VCARD\r\n")
     }
 
-    /// The document's header comment as one unwrapped line, so a note can be
-    /// looked for without minding where it happens to have been folded.
+    /// The document's header comment as one unwrapped line.
+    ///
+    /// A note can then be looked for without minding where it was folded.
     fn notes(toml: &str) -> String {
         let mut header = String::new();
 
@@ -825,8 +836,8 @@ mod tests {
                 .contains("full-name = \"Jane A. Doe\" # remote\n")
         );
 
-        // The same key twice is a TOML parse error, reported as the field the
-        // reader still has to decide.
+        // NOTE: the same key twice is a TOML parse error, reported as the
+        // field the reader still has to decide.
         let err = super::apply(&merged.vcard, &merged.toml).unwrap_err();
         assert!(
             matches!(&err, TcardError::Undecided(key) if key == "full-name"),
@@ -859,8 +870,8 @@ mod tests {
 
         let merged = super::project(&base, &local, &remote).unwrap();
 
-        // One address, one contested key: repeating the [[address]] header
-        // would be valid TOML and would silently make a second address.
+        // NOTE: repeating the [[address]] header would be valid TOML and
+        // would silently make a second address instead of a refusal.
         assert_eq!(
             merged
                 .toml
@@ -873,7 +884,7 @@ mod tests {
         assert!(merged.toml.contains("street = \"2 Oak St\" # local\n"));
         assert!(merged.toml.contains("street = \"3 Elm St\" # remote\n"));
 
-        // The address' other keys are written once, so only the street is
+        // NOTE: the other keys are written once, so only the street is left
         // undecided.
         assert_eq!(
             merged
@@ -913,8 +924,8 @@ mod tests {
             1,
         );
 
-        // Nothing to decide, so the document applies as it stands and keeps
-        // the update.
+        // NOTE: nothing is left to decide, so the document applies as it
+        // stands and keeps the update.
         let out = super::apply(&merged.vcard, &merged.toml).unwrap();
         assert!(out.contains("NOTE:hello\r\n"));
     }

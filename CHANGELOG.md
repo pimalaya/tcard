@@ -7,12 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
-
-- A contested value was shown cut off at its first `;`.
-
-  The document rendered a side's value by reading the first `;`-component of it, so a text value carrying an unescaped semicolon was put to the reader shorter than it is, and two sides differing only past that point read as the same value. A well-formed text value escapes its semicolons and has one component either way, so this only ever showed on a card that did not, which is exactly the card a reader most needs shown faithfully.
-
 ### Added
 
 - Added the `merge` verb and the `merge` module behind it, a three-way merge projected as TOML.
@@ -37,8 +31,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   `template [SOURCE]` prints the TOML scaffold (blank or prefilled). `edit [SOURCE]` runs the full "project → `$EDITOR` → apply" round-trip and emits the resulting vCard, writing a file source back in place. `SOURCE` resolves deterministically: `-` reads stdin, an existing file is read, otherwise the value is treated as literal vCard contents, and omitting it starts from a blank template. A `-V`/`--version` flag on each verb selects the target vCard version (the root `--version` stays the app version), and new (sourceless) cards are seeded with a fresh `urn:uuid` v4 `UID`. `merge BASE LOCAL REMOTE --output PATH` takes paths rather than a `SOURCE`, since a merge needs three cards at once.
 
-- Added a golden fixture test database under `tests/data/`: real-world and crafted vCards (`<name>.vcf`) each with their expected TOML projection (`<name>.<mode>.toml`), asserting projection equality and, unless flagged `.lossy`, byte-exact round-trip. Real cards are imported from the [ez-vcard](https://github.com/mangstadt/ez-vcard) app-export corpus (Gmail, Evolution, MS Outlook 2.1) and the [calcard](https://crates.io/crates/calcard) parser corpus, spanning vCard 2.1/3.0/4.0 and single/multi-card files.
+- Added a golden fixture test database under tests/data: real-world and crafted vCards, NAME.vcf, each with their expected TOML projection, NAME.mode.toml, asserting projection equality and, unless a NAME.lossy marker says otherwise, byte-exact round-trip. Real cards are imported from the [ez-vcard](https://github.com/mangstadt/ez-vcard) app-export corpus (Gmail, Evolution, MS Outlook 2.1) and the [calcard](https://crates.io/crates/calcard) parser corpus, spanning vCard 2.1/3.0/4.0 and single/multi-card files.
 
-- Added the crate architecture header on `lib.rs` and `main.rs`.
+- Added the crate architecture header on src/lib.rs and src/main.rs.
 
   The library's rustdoc is the architecture of the crate: its layers, the projection reading a body once, the merge writing what it could not settle as duplicate keys, and the module layout. The README stays the public presentation rather than doubling as the crate documentation, and the binary's header covers only its own wiring.
+
+### Fixed
+
+- A contested value was shown cut off at its first `;`.
+
+  The document rendered a side's value by reading the first `;`-component of it, so a text value carrying an unescaped semicolon was put to the reader shorter than it is, and two sides differing only past that point read as the same value. A well-formed text value escapes its semicolons and has one component either way, so this only ever showed on a card that did not, which is exactly the card a reader most needs shown faithfully.

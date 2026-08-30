@@ -1,11 +1,14 @@
-//! Property-based laws of the TOML projection.
+//! # Projection laws
 //!
-//! The projection is only trustworthy if folding it back is a no-op: an
-//! untouched document must leave the card exactly as it was, projecting the
-//! folded card again must give the very same document, and a property the
-//! vocabulary does not model must come out the other side byte for byte. The
-//! generator below writes cards the way a fold-back writes one, so a failure
-//! is the projection's and not the generator's.
+//! Property-based laws of the TOML projection, which is only trustworthy if
+//! folding it back is a no-op.
+//!
+//! An untouched document must leave the card exactly as it was, projecting
+//! the folded card again must give the very same document, and a property the
+//! vocabulary does not model must come out the other side byte for byte.
+//!
+//! The generator below writes cards the way a fold-back writes one, so a
+//! failure is the projection's and not the generator's.
 
 use proptest::prelude::*;
 use vcard::version::VcardVersion;
@@ -271,8 +274,8 @@ fn repeated_properties_of_one_name_do_not_collapse() {
         once.lines().filter(|line| line.starts_with("LANG")).count(),
         2
     );
-    // The collapse is not even stable: a second pass escapes the separator
-    // and turns two languages into one nonsense value.
+    // NOTE: the collapse is not even stable, a second pass escaping the
+    // separator and turning two languages into one nonsense value.
     assert_eq!(round_trip(&once), once);
 }
 

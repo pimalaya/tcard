@@ -1,14 +1,18 @@
+//! # Merge forcing laws
+//!
 //! Property-based laws of the merge document's duplicate-key forcing.
 //!
 //! A collision the projection can address is written as the same TOML key
 //! once per side, which TOML refuses, so an undecided document cannot be
-//! applied at all. These laws pin that down from both ends: that an
-//! undecided document is refused and names a field that genuinely collided,
-//! that keeping either side yields that side, that a value of the reader's
-//! own is taken as written, and that a structured collision never escapes
-//! the single table its instance projects to, where a repeated
-//! array-of-tables header would be legal TOML and would quietly make a
-//! second instance instead of an error.
+//! applied at all.
+//!
+//! These laws pin that down from both ends: an undecided document is refused
+//! and names a field that genuinely collided, keeping either side yields that
+//! side, and a value of the reader's own is taken as written.
+//!
+//! A structured collision never escapes the single table its instance
+//! projects to, where a repeated array-of-tables header would be legal TOML
+//! and would quietly make a second instance instead of an error.
 //!
 //! What the merge settled on its own is said in the header instead, and the
 //! laws below cover that too: a removal against an update, a part the
@@ -254,9 +258,8 @@ proptest! {
             header,
         );
 
-        // Inside that one table the contested key is written once per side
-        // and every other key exactly once, so the table holds one choice
-        // and nothing else is left undecided by accident.
+        // NOTE: the contested key is written once per side and every other
+        // key exactly once, so nothing else is left undecided by accident.
         let mut written: Vec<(&str, usize)> = Vec::new();
 
         for line in block(&merged.toml, header) {
@@ -383,7 +386,6 @@ fn two_contested_instances_holding_equal_values_are_told_apart() {
 
     let merged = merge::project(base, local, remote).unwrap();
 
-    // Two phones, two contests, each against the ancestor of its own block.
     assert_eq!(
         merged
             .toml
@@ -397,8 +399,8 @@ fn two_contested_instances_holding_equal_values_are_told_apart() {
     assert!(merged.toml.contains("value = \"+3\" # remote\n"));
     assert!(merged.toml.contains("value = \"+4\" # remote\n"));
 
-    // Keeping the remote side of both gives back the remote card's numbers,
-    // each in the block it belongs to.
+    // NOTE: keeping the remote side of both gives back the remote card's
+    // numbers, each in the block it belongs to.
     let decided = keeping(&merged.toml, "# local");
     let out = merge::apply(&merged.vcard, &decided).unwrap();
     assert!(out.contains("TEL:+3\r\nTEL:+4\r\n"), "{out}");
@@ -428,7 +430,7 @@ fn a_list_union_is_said_in_the_header() {
         merged.toml,
     );
 
-    // Nothing is left to choose, so the document applies as it stands, with
+    // NOTE: nothing is left to choose, so the document applies as it stands,
     // the whole list on the one key the reader can edit.
     assert!(
         merged
@@ -475,9 +477,8 @@ fn a_collision_on_a_projected_key_is_offered_as_a_choice() {
 
     let merged = merge::project(base, local, remote).unwrap();
 
-    // organization is a key of the document, so the reader could decide it,
-    // but the collision is said in a comment instead and the document
-    // applies with the local value.
+    // NOTE: organization is a key of the document, so the reader can decide
+    // it rather than be told in a comment that the local value was kept.
     assert!(
         merged
             .toml
@@ -514,17 +515,16 @@ fn a_date_collision_is_written_the_way_the_projection_writes_dates() {
 /// See findings/tcard-contest-rendered-in-the-wrong-block.md.
 #[test]
 fn a_contest_is_rendered_in_its_own_block() {
-    // Only the second phone is contested, but both of local's phones read
-    // "+5", so the first block matches the contested value by accident.
+    // NOTE: only the second phone is contested, but both of local's phones
+    // read "+5", so the first block matches the value by accident.
     let base = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:Jane\r\nTEL:+1\r\nTEL:+2\r\nEND:VCARD\r\n";
     let local = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:Jane\r\nTEL:+5\r\nTEL:+5\r\nEND:VCARD\r\n";
     let remote = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:Jane\r\nTEL:+1\r\nTEL:+9\r\nEND:VCARD\r\n";
 
     let merged = merge::project(base, local, remote).unwrap();
 
-    // Keeping the remote side must decide the second phone and leave the
-    // first alone. Today the contest sits in the first block instead, so
-    // the wrong phone is overwritten and the values end up swapped.
+    // NOTE: keeping the remote side must decide the second phone and leave
+    // the first alone, rather than overwrite it and swap the two values.
     let out = merge::apply(&merged.vcard, &keeping(&merged.toml, "# local")).unwrap();
 
     assert!(out.contains("TEL:+5\r\nTEL:+9\r\n"), "{out}");

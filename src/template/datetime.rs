@@ -16,8 +16,9 @@ use toml_edit::{Date, Datetime, Offset, Time};
 
 use crate::template::util::toml_str;
 
-/// A date as the projection writes one: native where the value is complete,
-/// the quoted string the card wrote where it is partial.
+/// A date as the projection writes one.
+///
+/// Native where the value is complete, else the quoted string the card wrote.
 pub fn date_rhs(value: &str) -> String {
     match toml_datetime(value) {
         Some(native) => native.to_string(),
@@ -25,11 +26,11 @@ pub fn date_rhs(value: &str) -> String {
     }
 }
 
-/// Read an RFC 6350 basic ISO 8601 date-time into a native TOML value, or
-/// `None` when it carries no complete date and so has no native form.
+/// Read an RFC 6350 basic ISO 8601 date-time into a native TOML value.
 ///
-/// The extended form a real card sometimes writes (`1996-04-15`) is read too,
-/// and a non-UTC offset is dropped rather than refused.
+/// `None` where it carries no complete date and so has no native form. The
+/// extended form a real card sometimes writes (`1996-04-15`) is read too, and
+/// a non-UTC offset is dropped rather than refused.
 pub fn toml_datetime(value: &str) -> Option<Datetime> {
     let (date, time) = match value.split_once('T') {
         Some((date, time)) => (date, Some(time)),
@@ -81,8 +82,10 @@ pub fn toml_datetime(value: &str) -> Option<Datetime> {
     })
 }
 
-/// Build a vCard value from a native TOML date-time, in RFC 6350 basic ISO
-/// 8601 form (`19960415`, with a `T..` time and trailing `Z` for UTC).
+/// Build a vCard value from a native TOML date-time.
+///
+/// RFC 6350 basic ISO 8601 form: `19960415`, with a `T..` time and a trailing
+/// `Z` for UTC.
 pub fn toml_date_value(dtm: &Datetime) -> String {
     let Some(date) = dtm.date else {
         return dtm.to_string();

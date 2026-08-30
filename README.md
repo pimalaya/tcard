@@ -1,9 +1,9 @@
-# tCard [![Documentation](https://img.shields.io/docsrs/tcard?style=flat&logo=docs.rs&logoColor=white)](https://docs.rs/tcard/latest/tcard) [![Matrix](https://img.shields.io/badge/chat-%23pimalaya-blue?style=flat&logo=matrix&logoColor=white)](https://matrix.to/#/#pimalaya:matrix.org) [![Mastodon](https://img.shields.io/badge/news-%40pimalaya-blue?style=flat&logo=mastodon&logoColor=white)](https://fosstodon.org/@pimalaya) [![Sponsor](https://img.shields.io/badge/sponsor-pink?style=flat&logo=github-sponsors&logoColor=white)](https://pimalaya.org/sponsor/)
+# tCard [![Matrix](https://img.shields.io/badge/chat-%23pimalaya-blue?style=flat&logo=matrix&logoColor=white)](https://matrix.to/#/#pimalaya:matrix.org) [![Mastodon](https://img.shields.io/badge/news-%40pimalaya-blue?style=flat&logo=mastodon&logoColor=white)](https://fosstodon.org/@pimalaya) [![Sponsor](https://img.shields.io/badge/sponsor-pink?style=flat&logo=github-sponsors&logoColor=white)](https://pimalaya.org/sponsor/)
 
 CLI to edit [vCards](https://www.rfc-editor.org/rfc/rfc6350) as ergonomic TOML
 
 ```sh
-$ tcard edit
+tcard edit
 ```
 
 ```toml
@@ -38,82 +38,76 @@ TEL;TYPE=cell:+1-555-0100
 END:VCARD
 ```
 
-This repository ships two interfaces:
-
-- Rust **library** to generate vCard from/to TOML projection
-- **CLI** to print, edit and merge vCards as TOML using `$EDITOR`
+This repository ships two interfaces: a Rust library projecting a card to TOML and folding the edits back, and a CLI printing, editing and merging cards through `$EDITOR`.
 
 ## Table of contents
 
 - [Features](#features)
+- [RFC coverage](#rfc-coverage)
 - [Installation](#installation)
   - [Pre-built binary](#pre-built-binary)
   - [Cargo](#cargo)
   - [Nix](#nix)
   - [Sources](#sources)
 - [Usage](#usage)
-  - [Library](#library)
-  - [CLI](#cli)
-- [FAQ](#faq)
-- [License](#license)
 - [AI policy](https://github.com/pimalaya/.github/blob/master/AI_POLICY.md)
-- [Contributing](./CONTRIBUTING.md)
+- [License](#license)
 - [Social](#social)
+- [Contributing](./CONTRIBUTING.md)
 - [Sponsoring](#sponsoring)
 
 ## Features
 
-- Partial `no_std` support
-- vCard from/to TOML **projection**, backed by [vcard-rs](https://crates.io/crates/vcard-rs) (vCard 2.1, RFC 2426, RFC 6350).
-- **Friendly** keys and values: cryptic property names become readable TOML keys.
-- **Structured** names and addresses: `N` and `ADR` expand into named components; typed properties (`email`, `tel`) list their accepted `TYPE` values.
-- **Discoverable** properties: prints all available properties with empty values by default, fill the ones you need.
-- **Minimal, lossless diffs**: `apply` patches the original text, re-rendering only the lines you changed.
-- **Three-way merge**: `merge` reconciles two divergent cards against their base and writes what it could not decide as duplicate TOML keys.
+- **Ergonomic projection**: a card becomes a fillable TOML form, its cryptic property names becoming readable keys.
+- **Structured** names and addresses: `N` and `ADR` expand into named components, and a typed property lists the `TYPE` values it accepts.
+- **Discoverable** properties: the blank form lists every property tcard knows, with empty values, so filling one needs no reference.
+- **Minimal, lossless diffs**: only the lines you changed are re-rendered, and every other line keeps the card's own bytes.
+- **Verbatim passthrough**: a property tcard does not list, a parameter the form hides and a group prefix all survive an edit untouched.
+- **Three-way merge**: `merge` reconciles two divergent cards against their base, writing what it cannot decide as duplicate TOML keys.
+- **Partial `no_std` support**: the projection and the merge build without `std`, the CLI sitting behind the opt-in `cli` feature.
+
+## RFC coverage
+
+| Version   | What is covered                                                                                       |
+|-----------|-------------------------------------------------------------------------------------------------------|
+| vCard 2.1 | The pre-standard version older address books still export, its bare type parameters included            |
+| [2426]    | vCard 3.0, including the properties this version requires and the ones it spells differently             |
+| [6350]    | vCard 4.0, the current standard, its deprecated address components hidden from the form yet preserved   |
+
+[2426]: https://www.rfc-editor.org/rfc/rfc2426
+[6350]: https://www.rfc-editor.org/rfc/rfc6350
+
+A card is read at the version it declares, and only a card starting from scratch is written at the version you ask for.
 
 ## Installation
 
 ### Pre-built binary
 
-The CLI binary `tcard` can be installed from the latest [GitHub release](https://github.com/pimalaya/tcard/releases) using the install script:
-
-*As root:*
+As root:
 
 ```sh
 curl -sSL https://raw.githubusercontent.com/pimalaya/tcard/master/install.sh | sudo sh
 ```
 
-*As a regular user:*
+As a regular user:
 
 ```sh
 curl -sSL https://raw.githubusercontent.com/pimalaya/tcard/master/install.sh | PREFIX=~/.local sh
 ```
 
-For a more up-to-date version, check out the [pre-releases](https://github.com/pimalaya/tcard/actions/workflows/pre-releases.yml) GitHub workflow: pick the latest run and grab the artifact matching your OS. These are built from the `master` branch.
+These commands install the latest binary from the GitHub [releases](https://github.com/pimalaya/tcard/releases) section.
 
-> [!NOTE]
-> Pre-built binaries are built with the default cargo features. If you need a different feature set, use another installation method.
+For a more up-to-date version, check the [releases](https://github.com/pimalaya/tcard/actions/workflows/releases.yml) workflow and look for the *Artifacts* section: those are built from `master`, with the default cargo features.
 
 ### Cargo
 
-```sh
-cargo install tcard --locked --features cli
-```
-
-You can also use the git repository for a more up-to-date (but less stable) version:
+The binary lives behind the `cli` feature, which is off by default so that a library consumer pays for none of it:
 
 ```sh
-cargo install --locked --git https://github.com/pimalaya/tcard.git
+cargo install --locked --features cli --git https://github.com/pimalaya/tcard.git
 ```
 
-To use `tcard` as a library, add it to your `Cargo.toml`:
-
-```toml
-[dependencies]
-tcard = "0.0.1"
-```
-
-The library has no default features: it is a slim `no_std` (plus `alloc`) build with no clap and no editor integration, just the `project` / `apply` projection over a parsed card and the three-way merge over it. The CLI lives behind the opt-in `cli` feature (enabled above with `cargo install --features cli`).
+tcard is not on [crates.io](https://crates.io) yet, so the git repository is the only source, for the binary and for a `tcard` dependency alike.
 
 ### Nix
 
@@ -139,103 +133,30 @@ nix run
 
 ## Usage
 
-### Library
+Run `tcard --help` for the full command tree, and `tcard <command> --help` for a command's arguments and what it does with them. The library API is documented by its inline docs, which will render on docs.rs once the crate is published.
 
-Project a vCard file to TOML, then fold edits back:
-
-```rust
-use tcard::{template, vcard};
-
-let input = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:Ada Lovelace\r\nEND:VCARD\r\n";
-
-// A file may hold several cards; project them all.
-let cards = vcard::parse(input).unwrap();
-let version = cards.version().unwrap();
-
-// Emit the prefilled scaffold: a single card flattens at the root, two or
-// more become [[card]] blocks.
-let scaffold = template::project(&cards, version);
-assert!(scaffold.contains("full-name = \"Ada Lovelace\""));
-
-// After the user edits the scaffold, fold it back onto the original text:
-// only changed lines are re-rendered, everything else stays byte-for-byte.
-let edited = scaffold.replace("Ada Lovelace", "Ada King");
-let updated = template::apply(input, &edited).unwrap();
-assert!(updated.contains("FN:Ada King"));
-```
-
-### CLI
-
-Print a blank, fully-documented template:
+A source is a path to a vCard file, `-` for stdin, or literal vCard contents; omitting it starts from a blank form. A few real command lines:
 
 ```sh
 tcard template
-```
-
-Project an existing vCard to TOML (path, stdin via `-`, or literal contents):
-
-```sh
 tcard template contact.vcf
 tcard template - < contact.vcf
-```
-
-Edit a vCard in `$EDITOR`. With a file source, the result is written back in place; otherwise it goes to stdout (or `--output`):
-
-```sh
 tcard edit contact.vcf
 tcard edit - < contact.vcf > updated.vcf
-tcard template | $EDITOR /dev/stdin   # inspect the scaffold first
-```
-
-Start a new card from scratch and write it out:
-
-```sh
 tcard edit --output alice.vcf
 tcard edit --version 3.0 --output bob.vcf
-```
-
-Merge two divergent cards against the base they both came from, decide the rest in `$EDITOR`, and write the result out:
-
-```sh
 tcard merge base.vcf local.vcf remote.vcf --output merged.vcf
 ```
 
-## FAQ
+The editor is the one the [edit](https://crates.io/crates/edit) crate resolves: `$VISUAL` first, then `$EDITOR`, then an OS default. tcard reads no configuration file, so set them in your shell instead.
 
-### How does a merge show what it could not decide?
-
-As duplicate TOML keys: a field both sides changed is written once per side, each line naming its side, with the ancestor commented above them.
-
-```toml
-# conflict, keep one line
-# full-name = "Jane Doe" # base
-full-name = "Jane Doe-Smith" # local
-full-name = "Jane A. Doe" # remote
-```
-
-TOML forbids duplicate keys, so an undecided document does not parse and nothing is written: delete the line you do not want, or replace both with a value of your own. What the merge already decided (a removal against an update, where the update wins) and an instance it paired by position rather than by `PID` are said in a comment at the top of the document instead.
-
-### How does `tcard edit` pick the editor?
-
-The [edit](https://crates.io/crates/edit) crate resolves `$VISUAL` first, then `$EDITOR`, then an OS default. tcard does not expose a config override: set `VISUAL` / `EDITOR` in your shell rc file.
-
-### Will tcard reformat my whole card on edit?
-
-No. `apply` patches the original text through a format-preserving editor (the vCard analog of toml_edit): only the lines of modeled fields you actually changed are re-rendered, so the diff is minimal. Folding, parameter casing (`TYPE=work` stays `TYPE=work`), property order and line endings of every untouched line are kept byte-for-byte.
-
-### What happens to properties tcard does not list?
-
-They are kept verbatim. The scaffold only surfaces the modeled vocabulary, but `apply` carries every other property (custom `X-*`, vendor extensions) straight from the original card into the result. The same holds inside a property it does list: a line is patched rather than rebuilt, so a parameter the form does not show (`PREF`, `PID`, `LANGUAGE`) and a component it hides (`ADR`'s `pobox` in vCard 4.0) come back as they were, and a property written with a group (Apple's `item1.EMAIL`) is rewritten in place, group and all.
-
-### How do I debug the CLI?
-
-Use `--log <level>` where `<level>` is one of `off`, `error`, `warn`, `info`, `debug`, `trace`:
+Logs go to stderr, so they can be redirected to a file while the command output stays on stdout:
 
 ```sh
-tcard --log trace template contact.vcf
+tcard template contact.vcf --log-level debug 2>/tmp/tcard.log
 ```
 
-The `RUST_LOG` environment variable, when set, overrides `--log` and supports per-target filters (see the [env_logger](https://docs.rs/env_logger/latest/env_logger/#enabling-logging) documentation). `RUST_BACKTRACE=1` enables full error backtraces. Logs are written to `stderr`.
+Use `--log-file <PATH>` to append them to a file directly. When `--log-level` is omitted the `RUST_LOG` environment variable is consulted, and `RUST_BACKTRACE=1` adds the full error backtrace.
 
 ## License
 

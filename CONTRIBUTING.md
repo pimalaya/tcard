@@ -1,55 +1,39 @@
 # Contributing guide
 
-Thank you for investing your time in contributing to tcard.
+Thank you for investing your time in contributing to tCard.
 
 Whether you are a human or an AI agent, read these in order before touching the code:
 
 1. the [Pimalaya README](https://github.com/pimalaya) for what the project is and how its repositories stack;
-2. the [Pimalaya ARCHITECTURE](https://github.com/pimalaya/.github/blob/master/ARCHITECTURE.md) for the conventions every repository shares (layering, `no_std`, modules, errors, code style, licensing, notes for AI agents);
-3. this guide, for how to build, test and submit changes here;
-4. the [src/lib.rs](./src/lib.rs) header for how tcard in particular is designed.
+2. the [Pimalaya CONTRIBUTING](https://github.com/pimalaya/.github/blob/master/CONTRIBUTING.md) guide (Nix environment, build and check commands, dependency overrides, commit style), which chains to the shared architecture and guidelines;
+3. the inline header documentation in [src/lib.rs](./src/lib.rs): it is the architecture document of this crate, covering the projection, the modelled vocabulary, the merge and the golden fixture database;
+4. the [cairn](./cairn) folder for the living specification, the in-flight proposals and the landed history, activated by [AGENTS.md](./AGENTS.md).
 
-This document stays operational; the design lives in the [src/lib.rs](./src/lib.rs) header, which is this crate's architecture document.
+Everything below documents only what differs from the Pimalaya standards.
 
-## Development environment
+## Feature matrix
 
-The environment is managed by [Nix](https://nixos.org/download.html). `nix develop` spawns a shell with the right toolchain; every cargo command below assumes it (or prefix them with `nix develop --command`).
+tcard is a library first, so it ships no default features: the projection and the merge are a `no_std` core over `alloc`, and everything the CLI needs (clap, the editor, the filesystem, `std` itself) sits behind the opt-in `cli` feature.
 
-Without Nix, install a recent stable toolchain via [rustup](https://rust-lang.github.io/rustup/) (`rustup update`); the crate needs Rust matching the `rust-version` in [Cargo.toml](./Cargo.toml).
-
-## Build
-
-tcard is a `#![no_std]` library with an optional CLI behind a single `cli` feature (not enabled by default):
+The default build is therefore the narrow one, the opposite of the io- libraries, so a change touching a feature gate or an import is built both ways before it lands:
 
 ```sh
-cargo build                      # no_std core library
-cargo build --features cli       # library + binary (pulls in std)
-cargo build --release --features cli
+cargo build                   # the no_std core alone, no std leak
+cargo build --features cli    # the library plus the binary above it
 ```
 
-When touching feature gates or imports, check both the core and the CLI build, so no `std`-only code leaks into the `no_std` core.
-
-## Lint, test, audit
+tcard tracks vcard-rs ahead of its crates.io release, so Cargo.toml patches it to git. To build against a local checkout, swap that entry for a path or pass one on the command line:
 
 ```sh
-cargo test                       # unit + integration + doc tests
-cargo test --features cli        # also exercises the CLI-only code paths
-cargo clippy --all-targets       # keep clean for core and --features cli
-cargo fmt                        # CI checks `cargo fmt --check`
+cargo test --all-features --config 'patch.crates-io.vcard-rs.path="../vcard"'
 ```
 
-Before opening a PR, make sure `cargo test`, `cargo clippy` and `cargo fmt --check` pass.
+## Adding a fixture
 
-### Adding a fixture
+tests/data is a golden database of vCards, described in the src/lib.rs header. Adding a real-world export is the fastest way to turn a bug report into a regression test:
 
-`tests/data/` is a golden database of vCards (see the golden fixture database section of the [src/lib.rs](./src/lib.rs) header); adding a real-world card is the fastest way to turn a bug report into a regression test:
-
-1. drop the card in as `tests/data/<name>.vcf`;
-2. generate the expectation: `cargo run --features cli -- template tests/data/<name>.vcf -o tests/data/<name>.all.toml`;
-3. eyeball the generated `.toml`; if anything looks wrong, you have found a bug, fix the code rather than the fixture;
-4. if the source will not round-trip byte-for-byte (see the known limitations in the [src/lib.rs](./src/lib.rs) header), add an empty `tests/data/<name>.lossy` marker;
+1. drop the card in as tests/data/NAME.vcf;
+2. generate the expectation with `cargo run --features cli -- template tests/data/NAME.vcf -o tests/data/NAME.all.toml`;
+3. read what came out: if anything looks wrong you have found a bug, so fix the code rather than the fixture;
+4. add an empty tests/data/NAME.lossy marker when the source will not round-trip byte-for-byte, the known limitations in the src/lib.rs header saying when;
 5. run `cargo test`.
-
-## Commit style
-
-tcard follows the [conventional commits specification](https://www.conventionalcommits.org/en/v1.0.0/#summary). Keep the subject imperative and scoped; describe the *why* in the body when it is not obvious.

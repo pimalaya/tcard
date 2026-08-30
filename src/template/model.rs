@@ -26,9 +26,10 @@ use crate::template::{
     },
 };
 
-/// A named component of a structured value: TOML key, optional hint, and
-/// whether it is deprecated (hidden in vCard 4.0, flagged `# deprecated` in
-/// older versions).
+/// A named component of a structured value.
+///
+/// Its TOML key, an optional hint, and whether it is deprecated: hidden in
+/// vCard 4.0, flagged `# deprecated` in older versions.
 pub type Component = (&'static str, Option<&'static str>, bool);
 
 /// Whether a property is required, possibly only in legacy versions.
@@ -50,26 +51,34 @@ pub enum Req {
 pub enum Kind {
     /// Single text value (`FN`, `NOTE`, ...).
     Scalar,
-
-    /// Date or date-time (`BDAY`, `ANNIVERSARY`): a native TOML value when
-    /// complete, a quoted RFC 6350 string for a partial (yearless) one.
+    /// Date or date-time (`BDAY`, `ANNIVERSARY`).
+    ///
+    /// A native TOML value when complete, a quoted RFC 6350 string for a
+    /// partial (yearless) one.
     Date,
-
-    /// Repeated or multi-valued text, joined on `sep` in the vCard
-    /// (`NICKNAME`, `CATEGORIES`, `ORG`).
-    List { sep: char },
-
+    /// Repeated or multi-valued text, joined on `sep` in the vCard.
+    ///
+    /// `NICKNAME`, `CATEGORIES` and `ORG` take this shape.
+    List {
+        /// The character joining the items on the vCard side.
+        sep: char,
+    },
     /// One structured value with named, ordered components (`N`, `GENDER`).
     Structured(&'static [Component]),
-
-    /// Repeatable property with an optional `TYPE` and a single value
-    /// (`EMAIL`, `TEL`, `URL`, `PHOTO`).
-    Typed { types: &'static [&'static str] },
-
-    /// Repeatable property with an optional `TYPE` and named, ordered
-    /// components (`ADR`).
-    TypedStructured {
+    /// Repeatable property with an optional `TYPE` and a single value.
+    ///
+    /// `EMAIL`, `TEL`, `URL` and `PHOTO` take this shape.
+    Typed {
+        /// The `TYPE` values the form lists as accepted.
         types: &'static [&'static str],
+    },
+    /// Repeatable property with an optional `TYPE` and components.
+    ///
+    /// Named and ordered, as `ADR` has them.
+    TypedStructured {
+        /// The `TYPE` values the form lists as accepted.
+        types: &'static [&'static str],
+        /// The named components, in the order the vCard writes them.
         components: &'static [Component],
     },
 }
@@ -89,8 +98,9 @@ pub struct Field {
     pub name: &'static str,
     /// Whether the property is required.
     pub req: Req,
-    /// Inline hint shown next to the value, only where it is not self-evident
-    /// (rendered as ` # <hint>`).
+    /// Inline hint shown next to the value, where it is not self-evident.
+    ///
+    /// Rendered as ` # <hint>`.
     pub hint: Option<&'static str>,
     /// Mapping shape.
     pub kind: Kind,
@@ -105,8 +115,10 @@ const NAME_COMPONENTS: &[Component] = &[
     ("suffixes", None, false),
 ];
 
-/// `ADR` components, in RFC 6350 order. `pobox` and `ext` are deprecated by
-/// RFC 6350: put the box and any suite/floor in `street` instead.
+/// `ADR` components, in RFC 6350 order.
+///
+/// RFC 6350 deprecates `pobox` and `ext`: put the box and any suite or floor
+/// in `street` instead.
 const ADR_COMPONENTS: &[Component] = &[
     ("pobox", None, true),
     ("ext", None, true),
@@ -123,8 +135,9 @@ const GENDER_COMPONENTS: &[Component] = &[
     ("identity", None, false),
 ];
 
-/// Common `TYPE` sets, shared between properties.
+/// The `TYPE` set of a property naming a place (`EMAIL`, `ADR`, `URL`).
 const PLACE_TYPES: &[&str] = &["home", "work"];
+/// The `TYPE` set of `TEL`, richer than the place one (RFC 6350 6.4.1).
 const TEL_TYPES: &[&str] = &[
     "home",
     "work",
@@ -137,12 +150,11 @@ const TEL_TYPES: &[&str] = &[
     "textphone",
 ];
 
-/// The modeled vocabulary. Everything outside this list is preserved verbatim
-/// by apply but not surfaced in the scaffold.
+/// The modeled vocabulary, everything outside it kept verbatim but unshown.
 ///
 /// Required fields lead, the remaining bare keys follow as one block (`note`
-/// last), and the sectioned properties come last: a TOML document root ends at
-/// the first table or array-of-tables header.
+/// last), then the sectioned properties: a TOML document root ends at the
+/// first table or array-of-tables header.
 pub const FIELDS: &[Field] = &[
     Field {
         key: "full-name",
@@ -306,10 +318,11 @@ impl Field {
         }
     }
 
-    /// Render this field into projected lines, read from the card's own
-    /// content lines for it. Sectioned kinds head their blocks under `prefix`
-    /// (e.g. `vcard`): flat (`None`) gives `[name]` and `[[email]]`, a card
-    /// block gives `[card.name]` / `[[card.email]]`.
+    /// Render this field into projected lines, read from the card's own ones.
+    ///
+    /// A sectioned kind heads its block under `prefix`: `None` gives `[name]`
+    /// and `[[email]]` at the top level, `card` gives `[card.name]` and
+    /// `[[card.email]]`.
     pub fn lines(&self, held: &[String], version: VcardVersion, prefix: Option<&str>) -> Vec<Line> {
         let hint = if self.required(version) {
             Some("required".to_owned())
@@ -418,19 +431,12 @@ impl Field {
         }
     }
 
-    /// This field's vCard content line(s) built from a TOML table (a single
-    /// `[[card]]` table), without an end of line, skipping empty values.
-    /// Empty when the field is absent or blank, so
-    /// [`crate::vcard::Card::set_lines`] removes it.
+    /// This field's content lines, built from a TOML table, without line ends.
     ///
-    /// `originals` are the card's own lines for this property, in the order
-    /// the projection showed them. Each line is patched rather than rebuilt,
-    /// so the parameters and the components the document does not write are
-    /// the ones the card already carried.
-    ///
-    /// An empty item is dropped from a `,` list, where it says nothing, and
-    /// kept in a `;` list, where the components are ordered and an empty one
-    /// holds the place of the ones behind it.
+    /// Empty when absent or blank, so [`crate::vcard::Card::set_lines`] drops
+    /// it. `originals` are the card's own lines in projection order, patched
+    /// not rebuilt so what the document does not write survives. An empty item
+    /// leaves a `,` list, saying nothing, and holds its slot in a `;` list.
     pub fn content_lines(&self, source: &dyn TableLike, originals: &[String]) -> Vec<String> {
         let Some(item) = source.get(self.key) else {
             return Vec::new();
@@ -519,21 +525,21 @@ impl Field {
         lines
     }
 
-    /// One content line for this field: the value behind the prefix the line
-    /// it came from carried, or behind the bare property name when it is new.
+    /// One content line for this field.
+    ///
+    /// The value behind the prefix its own line carried, or behind the bare
+    /// property name when the line is new.
     fn line(&self, original: Option<&String>, types: Option<&str>, value: &str) -> String {
         let original = original.map(String::as_str);
         format!("{}:{value}", patch::rewritten(original, self.name, types))
     }
 }
 
-/// Spread a field's items over the lines they came from: each original line
-/// keeps as many items as it held and a surplus item opens a line of its
-/// own, so two properties of one name (`LANG;PREF=1:fr` beside
-/// `LANG;PREF=2:en`) never collapse into one.
+/// Spread a field's items over the lines they came from.
 ///
-/// A `;` separator joins the components of a single property (`ORG`), which
-/// stays one line however many items it holds.
+/// Each original keeps the items it held and a surplus opens its own line, so
+/// two properties of one name (`LANG;PREF=1:fr`, `LANG;PREF=2:en`) never
+/// collapse. A `;` instead joins one property's components (`ORG`), one line.
 fn spread<'i, 'o>(
     items: &'i [String],
     originals: &'o [String],
@@ -567,8 +573,9 @@ fn spread<'i, 'o>(
     out
 }
 
-/// The TOML header for a section `key` under an optional parent `prefix`:
-/// `"key"` at the top level (flat), else `"prefix.key"`.
+/// The TOML header for a section `key` under an optional parent `prefix`.
+///
+/// `"key"` at the top level, else `"prefix.key"`.
 fn section_header(prefix: Option<&str>, key: &str) -> String {
     match prefix {
         Some(prefix) => format!("{prefix}.{key}"),
@@ -576,15 +583,17 @@ fn section_header(prefix: Option<&str>, key: &str) -> String {
     }
 }
 
-/// The types a TOML table writes, or `None` for a property whose projection
-/// lists no type at all (`PHOTO`) and whose own ones are therefore not the
-/// document's to clear.
+/// The types a TOML table writes.
+///
+/// `None` for a property whose projection lists no type at all (`PHOTO`),
+/// whose own ones are therefore not the document's to clear.
 fn shown<'t>(types: &[&str], table: &'t dyn TableLike) -> Option<&'t str> {
     (!types.is_empty()).then(|| read_type(table))
 }
 
-/// Push a `type =` line with its accepted-types hint, when the property has a
-/// common type set.
+/// Push a `type =` line with its accepted-types hint.
+///
+/// Nothing is pushed for a property with no common type set.
 fn type_line(lines: &mut Vec<Line>, value: &str, types: &[&str]) {
     if types.is_empty() {
         return;
@@ -596,9 +605,10 @@ fn type_line(lines: &mut Vec<Line>, value: &str, types: &[&str]) {
     });
 }
 
-/// Render named components, filled or empty, in order. A deprecated component
-/// is hidden in vCard 4.0 and flagged `# deprecated` in older versions; either
-/// way its positional slot is preserved on apply, read back by key.
+/// Render named components, filled or empty, in order.
+///
+/// A deprecated component is hidden in vCard 4.0 and flagged in older
+/// versions; either way its positional slot survives apply, read back by key.
 fn component_lines(
     components: &[Component],
     values: &[String],

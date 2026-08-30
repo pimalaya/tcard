@@ -24,7 +24,7 @@ use std::{
 
 use anyhow::{Context, Result, bail};
 use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
-use log::debug;
+use log::{debug, info};
 use pimalaya_cli::{
     clap::{
         args::{JsonFlag, LogFlags},
@@ -50,23 +50,28 @@ use crate::{
 #[command(long_version = long_version!())]
 #[command(infer_subcommands = true)]
 pub struct Cli {
+    /// The verb to run.
     #[command(subcommand)]
     pub cmd: Command,
-
+    /// Whether command output is written as JSON.
     #[command(flatten)]
     pub json: JsonFlag,
+    /// How much the run logs, and where the log goes.
     #[command(flatten)]
     pub log: LogFlags,
 }
 
 /// Top-level subcommands.
+///
+/// Each variant is documented by the command type it carries, clap taking the
+/// help of a subcommand from there: a doc comment here would override it and
+/// drop that command's `--help` body.
 #[derive(Subcommand, Debug)]
 pub enum Command {
     #[command(visible_alias = "tpl")]
     Template(TemplateCommand),
     Edit(EditCommand),
     Merge(MergeCommand),
-
     #[command(alias = "completions")]
     Completion(CompletionCommand),
     #[command(alias = "manuals")]
@@ -74,6 +79,7 @@ pub enum Command {
 }
 
 impl Command {
+    /// Run the verb, reporting through the shared printer.
     pub fn execute(self, printer: &mut impl Printer) -> Result<()> {
         match self {
             Self::Template(cmd) => cmd.execute(printer),
@@ -88,18 +94,19 @@ impl Command {
 /// Print a TOML template, blank or prefilled from a vCard.
 #[derive(Debug, Parser)]
 pub struct TemplateCommand {
+    /// The card the template is prefilled from.
     #[command(flatten)]
     pub source: SourceArg,
-
     /// Write to this file instead of stdout.
     #[arg(short, long, value_name = "PATH", value_parser = path_parser)]
     pub output: Option<PathBuf>,
-
+    /// The vCard version the template is written for.
     #[command(flatten)]
     pub version: VersionArg,
 }
 
 impl TemplateCommand {
+    /// Project the source card and write the TOML form out.
     pub fn execute(self, _printer: &mut impl Printer) -> Result<()> {
         let (src, version) = load(&self.source, &self.version)?;
         let cards = crate::vcard::parse(&src)?;
@@ -109,19 +116,32 @@ impl TemplateCommand {
 }
 
 /// Edit a vCard as TOML in `$EDITOR`, blank or prefilled from a source.
+///
+/// The card is projected as a fillable TOML form, opened in an editor, then
+/// folded back onto the source. Only the lines you changed are re-rendered, so
+/// every other byte of the card survives, the properties this form does not
+/// show included.
+///
+/// The editor is resolved from `$VISUAL`, then `$EDITOR`, then an OS default;
+/// tcard reads no configuration file and offers no override. A buffer that
+/// does not fold back re-opens seeded with what you wrote, so a broken edit is
+/// never lost.
 #[derive(Debug, Parser)]
 pub struct EditCommand {
+    /// The card the form is prefilled from.
     #[command(flatten)]
     pub source: SourceArg,
     /// Write the resulting vCard here instead of stdout (or the source file,
     /// when editing one in place).
     #[arg(short, long, value_name = "PATH", value_parser = path_parser)]
     pub output: Option<PathBuf>,
+    /// The vCard version a new card is written at.
     #[command(flatten)]
     pub version: VersionArg,
 }
 
 impl EditCommand {
+    /// Project the source, edit it, then write the resulting vCard out.
     pub fn execute(self, printer: &mut impl Printer) -> Result<()> {
         let (src, version) = load(&self.source, &self.version)?;
         let cards = crate::vcard::parse(&src)?;
@@ -158,6 +178,7 @@ pub struct MergeCommand {
 }
 
 impl MergeCommand {
+    /// Merge the three cards, decide the rest, then write the vCard out.
     pub fn execute(self, printer: &mut impl Printer) -> Result<()> {
         let base = read_card(&self.base)?;
         let local = read_card(&self.local)?;
@@ -175,10 +196,9 @@ impl MergeCommand {
 
 /// Open the editor on a TOML document, then fold the result back with `apply`.
 ///
-/// A document that does not fold back is recoverable: the editor re-opens
-/// seeded with the user's own buffer, so an edit is never lost, whether the
-/// document is broken TOML or still holds a collision to decide. JSON output
-/// is non-interactive, so the error propagates there instead.
+/// A document that does not fold back re-opens seeded with the user's own
+/// buffer, so an edit is never lost, whether it is broken TOML or a collision
+/// still to decide. JSON output is non-interactive and propagates instead.
 fn edit_toml(
     printer: &mut impl Printer,
     document: &str,
@@ -187,7 +207,7 @@ fn edit_toml(
     let mut builder = edit::Builder::new();
     builder.suffix(".toml");
 
-    debug!("opening editor on the projected document");
+    info!("opening editor on the projected document");
     let mut edited = edit::edit_with_builder(document, &builder).context("Cannot spawn editor")?;
 
     loop {
@@ -206,8 +226,9 @@ fn edit_toml(
     }
 }
 
-/// The question asked after a failed fold: what went wrong, with the parser's
-/// own detail when there is one, and the offer to re-open the editor.
+/// The question asked after a failed fold, and the offer to re-open.
+///
+/// It carries the parser's own detail when there is one.
 fn reprompt(err: &TcardError) -> String {
     match err {
         TcardError::ParseToml(err) => {
@@ -220,7 +241,7 @@ fn reprompt(err: &TcardError) -> String {
 /// Positional vCard source shared by the template and edit verbs.
 #[derive(Debug, Parser)]
 pub struct SourceArg {
-    /// A path to a vCard file, raw vCard contents, or `-` for stdin.  Omit to
+    /// A path to a vCard file, raw vCard contents, or `-` for stdin. Omit to
     /// start from a blank template.
     #[arg(value_name = "SOURCE")]
     pub source: Option<String>,
@@ -234,7 +255,7 @@ impl SourceArg {
         };
 
         if source == "-" {
-            debug!("reading vCard from stdin");
+            info!("reading vCard from stdin");
             let mut buffer = String::new();
             stdin()
                 .read_to_string(&mut buffer)
@@ -243,7 +264,7 @@ impl SourceArg {
         }
 
         if let Some(path) = self.file_path() {
-            debug!("reading vCard from {path:?}");
+            info!("reading vCard from {path:?}");
             let contents =
                 fs::read_to_string(&path).with_context(|| format!("Cannot read vCard {path:?}"))?;
             return Ok(Some(contents));
@@ -257,8 +278,9 @@ impl SourceArg {
         bail!("Source {source:?} is neither a readable file nor vCard contents")
     }
 
-    /// The source as an existing file path, when it resolves to one; used for
-    /// the in-place write default of `edit`.
+    /// The source as an existing file path, when it resolves to one.
+    ///
+    /// This is the in-place write default of `edit`.
     fn file_path(&self) -> Option<PathBuf> {
         let source = self.source.as_ref()?;
 
@@ -284,10 +306,13 @@ pub struct VersionArg {
 /// vCard versions tcard can target, validated by clap.
 #[derive(Clone, Copy, Debug, ValueEnum)]
 pub enum CardVersion {
+    /// vCard 2.1, the pre-standard version older exporters still write.
     #[value(name = "2.1")]
     V2_1,
+    /// vCard 3.0, RFC 2426.
     #[value(name = "3.0")]
     V3_0,
+    /// vCard 4.0, RFC 6350.
     #[value(name = "4.0")]
     V4_0,
 }
@@ -302,18 +327,20 @@ impl From<CardVersion> for VcardVersion {
     }
 }
 
-/// Load the source vCard text and the version to read it at: the first card's
-/// own when it declares one, else the requested one. The text is what the
-/// verbs parse and patch, so every untouched byte survives.
+/// Load the source vCard text and the version to read it at.
+///
+/// The version is the first card's own when it declares one, else the
+/// requested one. The text is what the verbs parse and patch, so every
+/// untouched byte survives.
 fn load(source: &SourceArg, version: &VersionArg) -> Result<(String, VcardVersion)> {
     let requested: VcardVersion = version.version.into();
 
     let text = match source.resolve()? {
         Some(text) => text,
         None => {
-            // A new card is seeded with a fresh UID so the contact has
-            // a stable identifier from the start.
-            debug!("seeding a new card with a fresh UID");
+            // NOTE: a fresh UID gives the contact a stable identifier from
+            // the start.
+            info!("seeding a new card with a fresh UID");
             format!(
                 "BEGIN:VCARD\r\nVERSION:{}\r\nUID:urn:uuid:{}\r\nEND:VCARD\r\n",
                 &*requested,
@@ -328,7 +355,7 @@ fn load(source: &SourceArg, version: &VersionArg) -> Result<(String, VcardVersio
 
 /// Read a card from a path, the form the three inputs of a merge take.
 fn read_card(path: &Path) -> Result<String> {
-    debug!("reading vCard from {path:?}");
+    info!("reading vCard from {path:?}");
     fs::read_to_string(path).with_context(|| format!("Cannot read vCard {path:?}"))
 }
 
@@ -336,11 +363,11 @@ fn read_card(path: &Path) -> Result<String> {
 fn write_out(path: Option<&Path>, bytes: &[u8]) -> Result<()> {
     match path {
         Some(path) => {
-            debug!("writing {} bytes to {path:?}", bytes.len());
+            info!("writing {} bytes to {path:?}", bytes.len());
             fs::write(path, bytes).with_context(|| format!("Cannot write to {path:?}"))
         }
         None => {
-            debug!("writing {} bytes to stdout", bytes.len());
+            info!("writing {} bytes to stdout", bytes.len());
             stdout().write_all(bytes).context("Cannot write to stdout")
         }
     }

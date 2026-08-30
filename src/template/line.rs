@@ -9,14 +9,17 @@ const TAB_WIDTH: usize = 8;
 
 /// A projected line: a left side and an optional inline hint.
 pub struct Line {
+    /// The line itself, up to where its hint would start.
     pub lhs: String,
+    /// The inline `#` hint, aligned on the block's shared column.
     pub hint: Option<String>,
 }
 
-/// The shared column at which a block's inline `#` comments align: the first
-/// tab stop past the widest hinted left side, so every hinted line reaches it
-/// with at least one tab (one too many is fine, one short would break the
-/// column).
+/// The shared column at which a block's inline `#` comments align.
+///
+/// It is the first tab stop past the widest hinted left side, so every hinted
+/// line reaches it with at least one tab: one too many is fine, one short
+/// would break the column.
 pub fn comment_column<'a>(lines: impl Iterator<Item = &'a Line>) -> usize {
     let widest = lines
         .filter(|line| line.hint.is_some())
