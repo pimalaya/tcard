@@ -17,6 +17,6 @@ The counterweight is cli-001, which overrides the rule for the cli subtree: noth
 
 ## What
 
-- Prefix every pub item the library ships: `TcardCards`, `TcardCard`, `TcardTemplate`, `TcardMerge`, `TcardMerged`, `TcardResult`, next to the `TcardError` that already had it.
+- Prefix every pub item the library ships: `TcardCards`, `TcardTemplate`, `TcardMerge`, `TcardMerged`, `TcardResult`, next to the `TcardError` that already had it.
 - Leave the cli subtree bare, cli-001 overriding the rule there.
 - Keep the module headers and the prose reading as English: the module is still `merge`, its header is still "# Merge", and a doc sentence still starts with the word rather than with the type.

@@ -39,7 +39,7 @@ use crate::{
         model::{FIELDS, Field},
         toml::tables,
     },
-    vcard::{TcardCard, TcardCards},
+    vcard::{Card, TcardCards},
 };
 
 /// A vCard stream and the TOML form it is edited through.

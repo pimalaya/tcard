@@ -3,15 +3,19 @@
 //! The one reader every verb uses, and the byte-preserving edits a fold-back
 //! makes through it.
 //!
-//! [`TcardCards::parse`] reads a whole stream into vcard-rs's syntax tree, which
-//! reproduces the wire bytes exactly. A card is therefore read once: what the
-//! merge reconciles and what the projection walks are the same tree, and no
-//! value passes through a second reader that might normalise it.
+//! [`TcardCards::parse`] reads a whole stream into vcard-rs's syntax tree,
+//! which reproduces the wire bytes exactly. A card is therefore read once:
+//! what the merge reconciles and what the projection walks are the same tree,
+//! and no value passes through a second reader that might normalise it.
 //!
-//! [`TcardCard`] is the edits applying a document makes, setting a property's
-//! lines, and [`TcardCards`] the one a whole document makes, counting the cards a
-//! file holds. An unchanged line keeps its own bytes, its parameter casing and
-//! its group included, and only a line the document moved is written anew.
+//! [`TcardCards`] counts the cards a file holds, and the crate-private `Card`
+//! trait sets the lines of one property of one of them, which is what applying
+//! a document comes down to. An unchanged line keeps its own bytes, its
+//! parameter casing and its group included.
+//!
+//! That trait extends vcard-rs's own syntax node rather than abstracting over
+//! anything: a foreign type takes no inherent method, and the projection reads
+//! better calling one than passing the node to a function.
 
 use core::fmt;
 
@@ -97,7 +101,7 @@ impl fmt::Display for TcardCards<'_> {
 }
 
 /// The byte-preserving property edits a fold-back makes to one card.
-pub trait TcardCard {
+pub(crate) trait Card {
     /// The content lines of the properties of that name, in source order.
     ///
     /// Each comes without its group prefix and its line ending.
@@ -111,7 +115,7 @@ pub trait TcardCard {
     fn set_lines(&mut self, name: &str, lines: &[String]);
 }
 
-impl TcardCard for VcardCst<'_> {
+impl Card for VcardCst<'_> {
     fn lines(&self, name: &str) -> Vec<String> {
         props(self, name).map(ungrouped).collect()
     }

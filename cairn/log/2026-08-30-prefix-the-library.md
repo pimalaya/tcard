@@ -6,7 +6,7 @@ date: 2026-08-30
 
 # The library carries its prefix, the CLI does not
 
-`Cards`, `Card`, `Template`, `Merge`, `Merged` and the `Result` alias became `TcardCards`, `TcardCard`, `TcardTemplate`, `TcardMerge`, `TcardMerged` and `TcardResult`, joining the `TcardError` that already carried it. Nothing under cli moved: `Cli`, `Command`, the three `*Command`s, `SourceArg`, `VersionArg`, `CardVersion`, `Editor` and `Output` are bare, which is the override cli-001 grants and not an oversight.
+`Cards`, `Template`, `Merge`, `Merged` and the `Result` alias became `TcardCards`, `TcardTemplate`, `TcardMerge`, `TcardMerged` and `TcardResult`, joining the `TcardError` that already carried it. Nothing under cli moved: `Cli`, `Command`, the three `*Command`s, `SourceArg`, `VersionArg`, `CardVersion`, `Editor` and `Output` are bare, which is the override cli-001 grants and not an oversight.
 
 The line the rule draws is the `cli` feature gate, which makes it checkable rather than a matter of taste: what ships to a library consumer is prefixed, what only the binary sees is not.
 
