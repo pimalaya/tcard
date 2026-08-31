@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-01
+
 ### Added
 
 - Added `--editor <COMMAND>` to `edit` and `merge`, naming the editor for one run, ahead of `$VISUAL` and `$EDITOR`.
@@ -16,6 +18,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
   The error carries the path, which is the recovery: what you typed outlives the run that could not use it. A round trip that folded back still removes the file.
 
+- Added inline hints to the name components, `additional` above all: the RFC role names say what a name is rather than where it is written, which is what varies between cultures, but nobody guesses that one means the middle names.
+
 ### Changed
 
 - **BREAKING**: the editor is now `$VISUAL`, then `$EDITOR`, and nothing after those, where an unset pair used to fall through to a list of platform defaults.
@@ -23,6 +27,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
   That list ended in `xdg-open`, `gnome-open`, `kde-open` and a bare `open`, which are file openers rather than editors: they hand the document to whatever the desktop associates with `.toml` and return before it is closed. tCard then read back a document nobody had touched yet and wrote the card out unchanged, which a caller spawning tCard reads as an edit given up on. Neither variable set is now a failure naming both of them and `--editor`.
 
   The [edit](https://crates.io/crates/edit) dependency is gone with it: what is left is a temporary file, a spawn with the three streams inherited, and a read back.
+
+- The inline comments share one column across a card, where each block used to pick its own.
+
+  Scrolling the form, the comments stepped in and out at every section. The card is the unit rather than the file, which is what tCal measures per component, so the two now agree.
 
 ### Fixed
 
@@ -41,16 +49,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - A component the document did not change now keeps the card's own bytes.
 
   A structured value is one line, so changing any component re-renders every component. Without this the same escaping reached the components that are not lists, and a `country` reading `Congo\, The Democratic Republic of the` came back changed by an edit to the street beside it.
-
-### Changed
-
-- The inline comments share one column across a card, where each block used to pick its own.
-
-  Scrolling the form, the comments stepped in and out at every section. The card is the unit rather than the file, which is what tCal measures per component, so the two now agree.
-
-### Added
-
-- Added inline hints to the name components, `additional` above all: the RFC role names say what a name is rather than where it is written, which is what varies between cultures, but nobody guesses that one means the middle names.
 
 ## [0.1.0] - 2026-08-30
 
@@ -76,5 +74,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 - Added the golden fixture database under tests/data: real and crafted cards asserting the projection and, where the source is already in the form a fold-back writes, a byte-exact round trip.
 
-[unreleased]: https://github.com/pimalaya/tcard/compare/v0.1.0..HEAD
+[unreleased]: https://github.com/pimalaya/tcard/compare/v0.2.0..HEAD
+[0.2.0]: https://github.com/pimalaya/tcard/compare/v0.1.0..v0.2.0
 [0.1.0]: https://github.com/pimalaya/tcard/compare/root..v0.1.0

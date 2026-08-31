@@ -1,7 +1,7 @@
 [package]
 name = "tcard"
 description = "Edit and merge vCards as ergonomic TOML"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Clément DOUIN (soywod) <clement.douin@posteo.net>"]
 edition = "2024"
 rust-version = "1.88"
