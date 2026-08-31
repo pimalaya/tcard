@@ -143,3 +143,15 @@ impl Output<'_> {
         }
     }
 }
+
+/// The editor a round trip opens, shared by the edit and merge verbs.
+#[derive(Debug, Parser)]
+pub struct EditorArg {
+    /// Command the document is edited in, winning over `$VISUAL` and
+    /// `$EDITOR`.
+    ///
+    /// Spawned on the path of a temporary TOML file it edits in place, so it
+    /// must block until the edit is done: use `code --wait`, not `code`.
+    #[arg(short, long, value_name = "COMMAND")]
+    pub editor: Option<String>,
+}

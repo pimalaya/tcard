@@ -11,7 +11,7 @@ use pimalaya_cli::{clap::parsers::path_parser, printer::Printer};
 
 use crate::{
     cli::{
-        args::{Output, SourceArg, VersionArg},
+        args::{EditorArg, Output, SourceArg, VersionArg},
         editor::Editor,
     },
     template::TcardTemplate,
@@ -24,15 +24,18 @@ use crate::{
 /// every other byte of the card survives, the properties this form does not
 /// show included.
 ///
-/// The editor is resolved from `$VISUAL`, then `$EDITOR`, then an OS default;
-/// tCard reads no configuration file and offers no override. A buffer that
-/// does not fold back re-opens seeded with what you wrote, so a broken edit is
-/// never lost.
+/// The editor is `--editor`, then `$VISUAL`, then `$EDITOR`, and nothing
+/// after those: tCard reads no configuration file and picks no editor of its
+/// own. A buffer that does not fold back re-opens seeded with what you wrote,
+/// and is kept and named when you decline, so a broken edit is never lost.
 #[derive(Debug, Parser)]
 pub struct EditCommand {
     /// The card the form is prefilled from.
     #[command(flatten)]
     pub source: SourceArg,
+    /// The editor the form is opened in.
+    #[command(flatten)]
+    pub editor: EditorArg,
     /// Write the resulting vCard here instead of stdout (or the source file,
     /// when editing one in place).
     #[arg(short, long, value_name = "PATH", value_parser = path_parser)]
@@ -52,6 +55,7 @@ impl EditCommand {
         let scaffold = template.project();
         let editor = Editor {
             document: &scaffold,
+            command: self.editor.editor.as_deref(),
         };
 
         let vcard = editor.apply(printer, |edited| template.apply(edited))?;

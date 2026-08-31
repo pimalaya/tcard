@@ -14,12 +14,15 @@ use log::info;
 use pimalaya_cli::{clap::parsers::path_parser, printer::Printer};
 
 use crate::{
-    cli::{args::Output, editor::Editor},
+    cli::{
+        args::{EditorArg, Output},
+        editor::Editor,
+    },
     merge::TcardMerge,
 };
 
 /// Merge two divergent vCards against their common base, then decide the rest
-/// in `$EDITOR`.
+/// in your editor.
 ///
 /// The merge settles every field only one side touched. What both sides
 /// changed is written into the document twice, once per side, which TOML
@@ -39,6 +42,9 @@ pub struct MergeCommand {
     /// Write the merged vCard here, once the document is decided.
     #[arg(short, long, value_name = "PATH", value_parser = path_parser)]
     pub output: PathBuf,
+    /// The editor the document is decided in.
+    #[command(flatten)]
+    pub editor: EditorArg,
 }
 
 impl MergeCommand {
@@ -57,6 +63,7 @@ impl MergeCommand {
 
         let editor = Editor {
             document: &merged.toml,
+            command: self.editor.editor.as_deref(),
         };
         let vcard = editor.apply(printer, |edited| merged.apply(edited))?;
 

@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### Added
+
+- Added `--editor <COMMAND>` to `edit` and `merge`, naming the editor for one run, ahead of `$VISUAL` and `$EDITOR`.
+
+  It is spawned on the path of a temporary TOML file it edits in place, so it must block until the edit is done: use `--editor "code --wait"`, not `--editor code`.
+
+- A buffer that does not fold back is now kept and named when you decline to fix it, and when the editor exits non-zero.
+
+  The error carries the path, which is the recovery: what you typed outlives the run that could not use it. A round trip that folded back still removes the file.
+
+### Changed
+
+- **BREAKING**: the editor is now `$VISUAL`, then `$EDITOR`, and nothing after those, where an unset pair used to fall through to a list of platform defaults.
+
+  That list ended in `xdg-open`, `gnome-open`, `kde-open` and a bare `open`, which are file openers rather than editors: they hand the document to whatever the desktop associates with `.toml` and return before it is closed. tCard then read back a document nobody had touched yet and wrote the card out unchanged, which a caller spawning tCard reads as an edit given up on. Neither variable set is now a failure naming both of them and `--editor`.
+
+  The [edit](https://crates.io/crates/edit) dependency is gone with it: what is left is a temporary file, a spawn with the three streams inherited, and a read back.
+
 ### Fixed
 
 - A list item now goes back to the line it came from, where the items used to be counted off the front of the array.

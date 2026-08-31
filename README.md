@@ -59,7 +59,7 @@ This repository ships two interfaces: a Rust library projecting a card to TOML a
 - **Minimal, lossless diffs**: only the lines you changed are re-rendered, and every other line keeps the card's own bytes.
 - **Verbatim passthrough**: a property tCard does not list, a parameter the form hides and a group prefix all survive an edit untouched.
 - **Three-way merge**: `merge` reconciles two divergent cards against their base, writing what it cannot decide as duplicate TOML keys.
-- **Interactive editing** through `$EDITOR`, behind the opt-in `cli` cargo feature.
+- **Interactive editing** in `$EDITOR`, or in the command `--editor` names, behind the opt-in `cli` cargo feature.
 
 ## Installation
 
@@ -137,10 +137,11 @@ tcard edit contact.vcf
 tcard edit - < contact.vcf > updated.vcf
 tcard edit --output alice.vcf
 tcard edit --version 3.0 --output bob.vcf
+tcard edit --editor "code --wait" contact.vcf
 tcard merge base.vcf local.vcf remote.vcf --output merged.vcf
 ```
 
-The editor is the one the [edit](https://crates.io/crates/edit) crate resolves: `$VISUAL` first, then `$EDITOR`, then an OS default. tCard reads no configuration file, so set them in your shell instead.
+The editor is the one `--editor` names, then `$VISUAL`, then `$EDITOR`, and nothing after those: tCard picks none of its own, and says so when neither variable is set. It reads no configuration file, so set them in your shell. The command is spawned on the path of a temporary TOML file it edits in place, so it must block until the edit is done: use `code --wait`, not `code`.
 
 Logs go to stderr, so they can be redirected to a file while the command output stays on stdout:
 

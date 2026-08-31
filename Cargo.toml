@@ -18,7 +18,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
 default = ["cli"]
-cli = ["dep:anyhow", "dep:clap", "dep:edit", "dep:pimalaya-cli", "dep:uuid"]
+cli = ["dep:anyhow", "dep:clap", "dep:pimalaya-cli", "dep:uuid"]
 
 [profile.release]
 lto = "fat"
@@ -44,12 +44,8 @@ proptest = "1"
 [dependencies]
 anyhow = { version = "1", optional = true }
 clap = { version = "4.4", features = ["derive", "env", "wrap_help"], optional = true }
-edit = { version = "0.1", optional = true }
 log = { version = "0.4", default-features = false }
 pimalaya-cli = { version = "0.2", default-features = false, features = ["prompt", "terminal"], optional = true }
 toml_edit = "0.25"
 uuid = { version = "1", features = ["v4"], optional = true }
-vcard-rs = { version = "0.3", default-features = false, features = ["parser"] }
-
-[patch.crates-io]
-vcard-rs.git = "https://github.com/pimalaya/vcard"
+vcard-rs = { version = "0.4", default-features = false, features = ["parser"] }
