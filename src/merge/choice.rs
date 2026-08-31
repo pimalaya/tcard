@@ -221,8 +221,8 @@ fn addressed(
             new,
             ..
         } => {
-            let (key, _, _) = components(field)?.get(*component)?;
-            Some((key, joined_rhs(old), joined_rhs(new)))
+            let component = components(field)?.get(*component)?;
+            Some((component.key, joined_rhs(old), joined_rhs(new)))
         }
         VcardMergeAction::ParamAdded { param, .. } => {
             let new = type_values(param)?;

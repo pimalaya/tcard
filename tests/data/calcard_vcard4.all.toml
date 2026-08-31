@@ -3,52 +3,52 @@
 # Fill what you need; empty fields are ignored. Properties
 # tCard does not model are kept verbatim, not shown here.
 
-full-name = "Forrest Gump"	# required
-kind = ""			# individual, group, org
+full-name = "Forrest Gump"					# required
+kind = ""							# individual, group, org
 nickname = []
 organization = ["Bubba Gump Shrimp Co."]
 title = "Shrimp Man"
 role = ""
 categories = []
-language = []			# en, fr
-birthday = ""			# 1996-04-15, or "--0415" without a year
-anniversary = ""		# 2009-08-08
-geo = ""			# geo:37.78,-122.40
-timezone = ""			# America/New_York
+language = []							# en, fr
+birthday = ""							# 1996-04-15, or "--0415" without a year
+anniversary = ""						# 2009-08-08
+geo = ""							# geo:37.78,-122.40
+timezone = ""							# America/New_York
 note = ""
 
 [name]
-family = "Gump"
-given = "Forrest"
-additional = ""
-prefixes = "Mr."
-suffixes = ""
+family = ["Gump"]						# last name(s)
+given = ["Forrest"]						# first name(s)
+additional = []							# middle name(s)
+prefixes = ["Mr."]						# Dr., Mr.
+suffixes = []							# Jr., PhD
 
 [gender]
-sex = ""	# F, M, O, N, U
+sex = ""							# F, M, O, N, U
 identity = ""
 
 [[email]]
-type = ""				# home, work
-value = "forrestgump@example.com"	# email address
+type = ""							# home, work
+value = "forrestgump@example.com"				# email address
 
 [[phone]]
-type = "work,voice"		# home, work, cell, fax, voice, video, pager, text, textphone
-value = "tel:+1-111-555-1212"	# +1-555-0100
+type = "work,voice"						# home, work, cell, fax, voice, video, pager, text, textphone
+value = "tel:+1-111-555-1212"					# +1-555-0100
 [[phone]]
-type = "home,voice"		# home, work, cell, fax, voice, video, pager, text, textphone
-value = "tel:+1-404-555-1212"	# +1-555-0100
+type = "home,voice"						# home, work, cell, fax, voice, video, pager, text, textphone
+value = "tel:+1-404-555-1212"					# +1-555-0100
 
 [[address]]
-type = "WORK"	# home, work
-street = "100 Waters Edge"
+type = "WORK"							# home, work
+street = ["100 Waters Edge"]
 locality = "Baytown"
 region = "LA"
 code = "30314"
 country = "United States of America"
 [[address]]
-type = "HOME"	# home, work
-street = "42 Plantation St."
+type = "HOME"							# home, work
+street = ["42 Plantation St."]
 locality = "Baytown"
 region = "LA"
 code = "30314"
@@ -58,9 +58,9 @@ country = "United States of America"
 value = "http://www.example.com/dir_photos/my_photo.gif"	# file:// or https://
 
 [[url]]
-type = ""	# home, work
-value = ""	# https://example.com
+type = ""							# home, work
+value = ""							# https://example.com
 
 [[messaging]]
-type = ""	# home, work
-value = ""	# xmpp:jane@example.com
+type = ""							# home, work
+value = ""							# xmpp:jane@example.com

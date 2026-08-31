@@ -12,11 +12,11 @@ const TAB_WIDTH: usize = 8;
 pub struct Line {
     /// The line itself, up to where its hint would start.
     pub lhs: String,
-    /// The inline `#` hint, aligned on the block's shared column.
+    /// The inline `#` hint, aligned on the document's shared column.
     pub hint: Option<String>,
 }
 
-/// The lines of one block, whose hints align on one column.
+/// The lines of one block, whose hints align with the whole document's.
 #[derive(Default)]
 pub struct Lines(Vec<Line>);
 
@@ -31,10 +31,13 @@ impl Lines {
         self.0.extend(lines.0);
     }
 
-    /// Write the block out, each hint padded with tabs to the shared column.
-    pub fn emit(&self, out: &mut String) {
-        let column = self.column();
+    /// The lines, for measuring a column across several blocks.
+    pub fn iter(&self) -> impl Iterator<Item = &Line> {
+        self.0.iter()
+    }
 
+    /// Write the block out, each hint padded with tabs to reach `column`.
+    pub fn emit(&self, out: &mut String, column: usize) {
         for line in &self.0 {
             out.push_str(&line.lhs);
 
@@ -53,23 +56,26 @@ impl Lines {
             out.push('\n');
         }
     }
+}
 
-    /// The column at which the block's inline `#` comments align.
-    ///
-    /// It is the first tab stop past the widest hinted left side, so every
-    /// hinted line reaches it with at least one tab: one too many is fine, one
-    /// short would break the column.
-    fn column(&self) -> usize {
-        let widest = self
-            .0
-            .iter()
-            .filter(|line| line.hint.is_some())
-            .map(|line| line.lhs.len())
-            .max()
-            .unwrap_or(0);
+/// The column at which inline `#` comments align.
+///
+/// It is the first tab stop past the widest hinted left side, so every hinted
+/// line reaches it with at least one tab: one too many is fine, one short
+/// would break the column.
+///
+/// It is measured over the whole document rather than over each block, so the
+/// comments line up down the page instead of stepping in and out at every
+/// section. That is what tCal does for a component, and reading a form is the
+/// same job in both.
+pub fn column<'a>(lines: impl Iterator<Item = &'a Line>) -> usize {
+    let widest = lines
+        .filter(|line| line.hint.is_some())
+        .map(|line| line.lhs.len())
+        .max()
+        .unwrap_or(0);
 
-        (widest / TAB_WIDTH + 1) * TAB_WIDTH
-    }
+    (widest / TAB_WIDTH + 1) * TAB_WIDTH
 }
 
 impl FromIterator<Line> for Lines {

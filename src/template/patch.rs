@@ -174,7 +174,7 @@ pub fn split(text: &str, sep: char) -> Vec<&str> {
 /// Split a value into the items `sep` separates.
 ///
 /// An escaped separator (RFC 6350 section 3.4) belongs to the item it sits in.
-fn items(value: &str, sep: char) -> Vec<&str> {
+pub fn items(value: &str, sep: char) -> Vec<&str> {
     let mut out = Vec::new();
     let mut escaped = false;
     let mut start = 0;

@@ -20,15 +20,15 @@ geo = ""			# geo:37.78,-122.40
 timezone = ""			# America/New_York
 note = ""
 
-[card.name]	# required
-family = "Stenerson"
-given = "Derik"
-additional = ""
-prefixes = ""
-suffixes = ""
+[card.name]			# required
+family = ["Stenerson"]		# last name(s)
+given = ["Derik"]		# first name(s)
+additional = []			# middle name(s)
+prefixes = []			# Dr., Mr.
+suffixes = []			# Jr., PhD
 
 [card.gender]
-sex = ""	# F, M, O, N, U
+sex = ""			# F, M, O, N, U
 identity = ""
 
 [[card.email]]
@@ -46,22 +46,22 @@ value = "+1-425-936-7329"	# +1-555-0100
 type = "WORK,POSTAL,PARCEL"	# home, work
 pobox = ""			# deprecated
 ext = ""			# deprecated
-street = "One Microsoft Way"
+street = ["One Microsoft Way"]
 locality = "Redmond"
 region = "WA"
 code = "98052-6399"
 country = "USA"
 
 [[card.photo]]
-value = ""	# file:// or https://
+value = ""			# file:// or https://
 
 [[card.url]]
-type = ""	# home, work
-value = ""	# https://example.com
+type = ""			# home, work
+value = ""			# https://example.com
 
 [[card.messaging]]
-type = ""	# home, work
-value = ""	# xmpp:jane@example.com
+type = ""			# home, work
+value = ""			# xmpp:jane@example.com
 
 [[card]]
 full-name = "Anik Ganguly"	# required
@@ -78,15 +78,15 @@ geo = ""			# geo:37.78,-122.40
 timezone = ""			# America/New_York
 note = ""
 
-[card.name]	# required
-family = "Ganguly"
-given = "Anik"
-additional = ""
-prefixes = ""
-suffixes = ""
+[card.name]			# required
+family = ["Ganguly"]		# last name(s)
+given = ["Anik"]		# first name(s)
+additional = []			# middle name(s)
+prefixes = []			# Dr., Mr.
+suffixes = []			# Jr., PhD
 
 [card.gender]
-sex = ""	# F, M, O, N, U
+sex = ""			# F, M, O, N, U
 identity = ""
 
 [[card.email]]
@@ -101,47 +101,47 @@ value = "+1-734-542-5955"	# +1-555-0100
 type = "WORK,POSTAL,PARCEL"	# home, work
 pobox = ""			# deprecated
 ext = "Suite 101"		# deprecated
-street = "38777 West Six Mile Road"
+street = ["38777 West Six Mile Road"]
 locality = "Livonia"
 region = "MI"
 code = "48152"
 country = "USA"
 
 [[card.photo]]
-value = ""	# file:// or https://
+value = ""			# file:// or https://
 
 [[card.url]]
-type = ""	# home, work
-value = ""	# https://example.com
+type = ""			# home, work
+value = ""			# https://example.com
 
 [[card.messaging]]
-type = ""	# home, work
-value = ""	# xmpp:jane@example.com
+type = ""			# home, work
+value = ""			# xmpp:jane@example.com
 
 [[card]]
-full-name = "Robert Moskowitz"	# required
-kind = ""			# individual, group, org
+full-name = "Robert Moskowitz"		# required
+kind = ""				# individual, group, org
 nickname = []
 organization = []
 title = ""
 role = ""
 categories = []
-language = []			# en, fr
-birthday = ""			# 1996-04-15, or "--0415" without a year
-anniversary = ""		# 2009-08-08
-geo = ""			# geo:37.78,-122.40
-timezone = ""			# America/New_York
+language = []				# en, fr
+birthday = ""				# 1996-04-15, or "--0415" without a year
+anniversary = ""			# 2009-08-08
+geo = ""				# geo:37.78,-122.40
+timezone = ""				# America/New_York
 note = ""
 
-[card.name]	# required
-family = "Moskowitz"
-given = "Robert"
-additional = ""
-prefixes = ""
-suffixes = ""
+[card.name]				# required
+family = ["Moskowitz"]			# last name(s)
+given = ["Robert"]			# first name(s)
+additional = []				# middle name(s)
+prefixes = []				# Dr., Mr.
+suffixes = []				# Jr., PhD
 
 [card.gender]
-sex = ""	# F, M, O, N, U
+sex = ""				# F, M, O, N, U
 identity = ""
 
 [[card.email]]
@@ -149,26 +149,26 @@ type = "INTERNET"			# home, work
 value = "rgm-ietf@htt-consult.com"	# email address
 
 [[card.phone]]
-type = ""	# home, work, cell, fax, voice, video, pager, text, textphone
-value = ""	# +1-555-0100
+type = ""				# home, work, cell, fax, voice, video, pager, text, textphone
+value = ""				# +1-555-0100
 
 [[card.address]]
-type = ""	# home, work
-pobox = ""	# deprecated
-ext = ""	# deprecated
-street = ""
+type = ""				# home, work
+pobox = ""				# deprecated
+ext = ""				# deprecated
+street = []
 locality = ""
 region = ""
 code = ""
 country = ""
 
 [[card.photo]]
-value = ""	# file:// or https://
+value = ""				# file:// or https://
 
 [[card.url]]
-type = ""	# home, work
-value = ""	# https://example.com
+type = ""				# home, work
+value = ""				# https://example.com
 
 [[card.messaging]]
-type = ""	# home, work
-value = ""	# xmpp:jane@example.com
+type = ""				# home, work
+value = ""				# xmpp:jane@example.com

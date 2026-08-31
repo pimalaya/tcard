@@ -24,7 +24,9 @@ pub(crate) mod patch;
 pub(crate) mod toml;
 
 use alloc::{
+    format,
     string::{String, ToString},
+    vec,
     vec::Vec,
 };
 
@@ -123,7 +125,7 @@ impl<'a> TcardTemplate<'a> {
         out.push_str("# tCard does not model are kept verbatim, not shown here.\n");
         out.push('\n');
 
-        self.project_card(&mut out, self.cards.0.first(), None);
+        emit(&mut out, &self.project_card(self.cards.0.first(), None));
         out
     }
 
@@ -135,8 +137,12 @@ impl<'a> TcardTemplate<'a> {
         out.push_str("# blocks are ignored. Properties tCard does not model are kept\n");
         out.push_str("# verbatim, not shown here.\n");
 
+        // NOTE: one column per card rather than one for the file, which is
+        // what tCal does per component: a long value on one card would
+        // otherwise push every other card's comments out with it.
         for card in &self.cards.0 {
-            self.project_card(&mut out, Some(card), Some("card"));
+            out.push('\n');
+            emit(&mut out, &self.project_card(Some(card), Some("card")));
         }
 
         out
@@ -156,30 +162,50 @@ impl<'a> TcardTemplate<'a> {
     ///
     /// A `None` prefix puts the sections at the top level, a named one nests
     /// them under the block.
-    fn project_card(&self, out: &mut String, card: Option<&VcardCst<'_>>, prefix: Option<&str>) {
-        if let Some(prefix) = prefix {
-            out.push('\n');
-            out.push_str("[[");
-            out.push_str(prefix);
-            out.push_str("]]\n");
-        }
-
+    fn project_card(&self, card: Option<&VcardCst<'_>>, prefix: Option<&str>) -> Vec<Lines> {
         let bare: Vec<&Field> = FIELDS
             .iter()
             .take_while(|field| field.kind.is_simple())
             .collect();
-        let bare_lines: Lines = bare
-            .iter()
-            .flat_map(|field| field.lines(&held(card, field), self.version, prefix))
-            .collect();
-        bare_lines.emit(out);
+
+        // NOTE: the `[[card]]` header leads the bare keys rather than
+        // standing as a block of its own, the blank line belonging before
+        // the header rather than after it.
+        let mut lead = Lines::default();
+
+        if let Some(prefix) = prefix {
+            lead.push(format!("[[{prefix}]]"), None);
+        }
+
+        lead.extend(
+            bare.iter()
+                .flat_map(|field| field.lines(&held(card, field), self.version, prefix))
+                .collect(),
+        );
+
+        let mut blocks = vec![lead];
 
         for field in &FIELDS[bare.len()..] {
-            out.push('\n');
-            field
-                .lines(&held(card, field), self.version, prefix)
-                .emit(out);
+            blocks.push(field.lines(&held(card, field), self.version, prefix));
         }
+
+        blocks
+    }
+}
+
+/// Write one card's blocks out, a blank line between them.
+///
+/// The column is measured across the card, so its comments align down the
+/// page rather than stepping in and out at each section.
+fn emit(out: &mut String, blocks: &[Lines]) {
+    let column = line::column(blocks.iter().flat_map(Lines::iter));
+
+    for (index, block) in blocks.iter().enumerate() {
+        if index > 0 {
+            out.push('\n');
+        }
+
+        block.emit(out, column);
     }
 }
 
@@ -264,10 +290,10 @@ mod tests {
         assert!(!toml.contains("[[card]]"));
         assert!(toml.contains("full-name = \"John Doe\""));
         assert!(toml.contains("[name]"));
-        assert!(toml.contains("family = \"Doe\""));
+        assert!(toml.contains("family = [\"Doe\"]"));
         assert!(toml.contains("[[email]]"));
         assert!(toml.contains("value = \"john@work.example\""));
-        assert!(toml.contains("street = \"123 Main St\""));
+        assert!(toml.contains("street = [\"123 Main St\"]"));
         assert!(!toml.contains("X-CUSTOM"));
     }
 
@@ -328,11 +354,31 @@ mod tests {
 
         assert!(!hinted.is_empty());
 
-        for line in hinted {
+        for line in &hinted {
             assert!(line.contains("\t#"), "not tab-aligned: {line:?}");
             let before = &line[..line.find('#').unwrap()];
             assert!(!before.contains("  "), "space padded: {line:?}");
         }
+
+        // One column for the whole card, not one per section: expanding the
+        // tabs puts every `#` at the same offset, across the bare keys,
+        // `[name]`, `[[email]]` and the rest alike.
+        let columns: Vec<usize> = hinted
+            .iter()
+            .map(|line| {
+                let before = &line[..line.find('#').unwrap()];
+
+                before.chars().fold(0, |at, ch| match ch {
+                    '\t' => (at / 8 + 1) * 8,
+                    _ => at + 1,
+                })
+            })
+            .collect();
+
+        assert!(
+            columns.windows(2).all(|pair| pair[0] == pair[1]),
+            "comments do not share one column: {columns:?}",
+        );
     }
 
     #[test]
@@ -379,6 +425,105 @@ mod tests {
         assert!(toml.contains("sex = \"O\""));
         assert!(toml.contains("identity = \"intersex\""));
         assert!(apply(src, &toml).contains("GENDER:O;intersex"));
+    }
+
+    /// RFC 6350 6.2.2: an `N` component holds several comma-separated
+    /// values, which the form shows as an array.
+    const MULTI: &str = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:A\r\nN:Stevenson;John;Philip,Paul;;Jr.,M.D.\r\nEND:VCARD\r\n";
+
+    #[test]
+    fn a_component_holding_several_values_projects_as_an_array() {
+        let toml = project(MULTI);
+
+        assert!(toml.contains("additional = [\"Philip\", \"Paul\"]"));
+        assert!(toml.contains("suffixes = [\"Jr.\", \"M.D.\"]"));
+        assert!(toml.contains("prefixes = []"));
+    }
+
+    #[test]
+    fn editing_one_component_leaves_the_separators_of_the_others() {
+        // The bug this guards: `N` is one line, so changing any component
+        // re-renders all of them, and a component typed as a string had its
+        // separators escaped into the value on the way past.
+        let toml = project(MULTI).replace("given = [\"John\"]", "given = [\"Jon\"]");
+
+        assert!(apply(MULTI, &toml).contains("N:Stevenson;Jon;Philip,Paul;;Jr.,M.D."));
+    }
+
+    #[test]
+    fn a_component_written_as_a_string_is_read_as_one_value() {
+        let toml = project(MULTI).replace("given = [\"John\"]", "given = \"Jon\"");
+
+        assert!(apply(MULTI, &toml).contains("N:Stevenson;Jon;Philip,Paul;;Jr.,M.D."));
+    }
+
+    #[test]
+    fn a_comma_typed_into_a_component_is_escaped() {
+        let toml = project(MULTI).replace("family = [\"Stevenson\"]", "family = [\"Smith, Jr\"]");
+
+        assert!(apply(MULTI, &toml).contains("N:Smith\\, Jr;John;"));
+    }
+
+    /// Two properties of one repeatable name, whose items the form shows as
+    /// one array.
+    const REPEATED: &str = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:A\r\n\
+        NICKNAME;PREF=1:Jim,Jimmy\r\nNICKNAME;PREF=2:Big Tuna\r\nEND:VCARD\r\n";
+
+    #[test]
+    fn removing_an_item_leaves_the_other_lines_alone() {
+        // The bug this guards: the items were counted off the front of the
+        // array, so dropping one slid every item behind it onto the line
+        // before, taking that line's parameters. "Big Tuna" became the
+        // preferred nickname and its own line disappeared.
+        let toml = project(REPEATED).replace("\"Jim\", \"Jimmy\", ", "\"Jim\", ");
+        let out = apply(REPEATED, &toml);
+
+        assert!(out.contains("NICKNAME;PREF=1:Jim\r\n"), "{out}");
+        assert!(out.contains("NICKNAME;PREF=2:Big Tuna\r\n"), "{out}");
+    }
+
+    #[test]
+    fn renaming_an_item_rewrites_its_own_line() {
+        let toml = project(REPEATED).replace("\"Big Tuna\"", "\"Tuna\"");
+        let out = apply(REPEATED, &toml);
+
+        assert!(out.contains("NICKNAME;PREF=2:Tuna\r\n"), "{out}");
+        assert_eq!(out.matches("NICKNAME").count(), 2, "{out}");
+    }
+
+    #[test]
+    fn items_added_to_a_single_line_join_it() {
+        let src = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:A\r\nNICKNAME;PREF=1:Jim\r\nEND:VCARD\r\n";
+        let toml = project(src).replace("[\"Jim\"]", "[\"Jim\", \"Jimmy\"]");
+        let out = apply(src, &toml);
+
+        // One line has nothing to disambiguate, so an added item can only
+        // belong to it, parameters and all.
+        assert!(out.contains("NICKNAME;PREF=1:Jim,Jimmy\r\n"), "{out}");
+        assert_eq!(out.matches("NICKNAME").count(), 1, "{out}");
+    }
+
+    #[test]
+    fn items_no_line_held_share_one_new_line() {
+        let toml = project(REPEATED).replace("\"Big Tuna\"]", "\"Big Tuna\", \"a\", \"b\"]");
+        let out = apply(REPEATED, &toml);
+
+        // Which line's parameters they should carry is the question two
+        // lines make unanswerable, so they carry none, together.
+        assert!(out.contains("NICKNAME:a,b\r\n"), "{out}");
+        assert_eq!(out.matches("NICKNAME").count(), 3, "{out}");
+    }
+
+    #[test]
+    fn structured_components_stay_on_one_line() {
+        let src = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:A\r\nORG:Acme;Eng\r\nEND:VCARD\r\n";
+        let toml = project(src).replace("[\"Acme\", \"Eng\"]", "[\"Acme\", \"Eng\", \"Team\"]");
+        let out = apply(src, &toml);
+
+        // A `;` joins one property's own components, so a third one is a
+        // third component rather than a second `ORG`.
+        assert!(out.contains("ORG:Acme;Eng;Team\r\n"), "{out}");
+        assert_eq!(out.matches("ORG").count(), 1, "{out}");
     }
 
     #[test]

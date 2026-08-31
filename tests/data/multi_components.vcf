@@ -1,0 +1,7 @@
+BEGIN:VCARD
+VERSION:4.0
+UID:urn:uuid:1f-stevenson
+FN:John Stevenson
+N:Stevenson;John;Philip,Paul;Dr.;Jr.,M.D.,A.C.P.
+ADR;TYPE=work:;;123 Main St,Apt 4;Springfield;IL;62701;Congo\, The Democratic Republic of the
+END:VCARD

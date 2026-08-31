@@ -3,54 +3,54 @@
 # Fill what you need; empty fields are ignored. Properties
 # tCard does not model are kept verbatim, not shown here.
 
-full-name = "altid"	# required
-kind = ""		# individual, group, org
+full-name = "altid"		# required
+kind = ""			# individual, group, org
 nickname = []
 organization = []
 title = ""
 role = ""
 categories = []
-language = []		# en, fr
-birthday = ""		# 1996-04-15, or "--0415" without a year
-anniversary = ""	# 2009-08-08
-geo = ""		# geo:37.78,-122.40
-timezone = ""		# America/New_York
+language = []			# en, fr
+birthday = ""			# 1996-04-15, or "--0415" without a year
+anniversary = ""		# 2009-08-08
+geo = ""			# geo:37.78,-122.40
+timezone = ""			# America/New_York
 note = "RFC6350 requires N to have cardinality <=1 but allows alternative representations to be included if they are linked by the ALTID parameter."
 
 [name]
-family = "representation"
-given = "one"
-additional = ""
-prefixes = ""
-suffixes = ""
+family = ["representation"]	# last name(s)
+given = ["one"]			# first name(s)
+additional = []			# middle name(s)
+prefixes = []			# Dr., Mr.
+suffixes = []			# Jr., PhD
 
 [gender]
-sex = ""	# F, M, O, N, U
+sex = ""			# F, M, O, N, U
 identity = ""
 
 [[email]]
-type = ""	# home, work
-value = ""	# email address
+type = ""			# home, work
+value = ""			# email address
 
 [[phone]]
-type = ""	# home, work, cell, fax, voice, video, pager, text, textphone
-value = ""	# +1-555-0100
+type = ""			# home, work, cell, fax, voice, video, pager, text, textphone
+value = ""			# +1-555-0100
 
 [[address]]
-type = ""	# home, work
-street = ""
+type = ""			# home, work
+street = []
 locality = ""
 region = ""
 code = ""
 country = ""
 
 [[photo]]
-value = ""	# file:// or https://
+value = ""			# file:// or https://
 
 [[url]]
-type = ""	# home, work
-value = ""	# https://example.com
+type = ""			# home, work
+value = ""			# https://example.com
 
 [[messaging]]
-type = ""	# home, work
-value = ""	# xmpp:jane@example.com
+type = ""			# home, work
+value = ""			# xmpp:jane@example.com

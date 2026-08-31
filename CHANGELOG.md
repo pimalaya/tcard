@@ -6,6 +6,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- A list item now goes back to the line it came from, where the items used to be counted off the front of the array.
+
+  A line's parameters describe the items that line carried, so counting instead handed each line whatever had room. Removing one item slid every item behind it onto the line before: deleting `Jimmy` from `NICKNAME;PREF=1:Jim,Jimmy` beside `NICKNAME;PREF=2:Big Tuna` left `NICKNAME;PREF=1:Jim,Big Tuna`, making `Big Tuna` the preferred nickname and deleting the line that said otherwise.
+
+- Items added to a property that holds one line now join that line instead of each opening a bare line of its own.
+
+  One line has nothing to disambiguate, so an added item can only belong to it, parameters and all. Where several lines make it unanswerable, the added items share one new line between them rather than taking one each. `ORG` is unaffected, its `;` joining one property's own components.
+
+- **BREAKING**: a structured component that holds several values is an array in the form, where it used to be one string.
+
+  `N`'s five components and `ADR`'s street are lists: RFC 6350 section 6.2.2 says a component "can include multiple text values separated by the COMMA character", and section 6.3.1 names a multi-line street as the case. Typed as one string, tCard could not tell that comma from one someone typed, and escaped it on the way out: editing any part of a name turned `Philip,Paul` into `Philip\,Paul`, two additional names into one. A bare string is still accepted where an array is expected.
+
+- A component the document did not change now keeps the card's own bytes.
+
+  A structured value is one line, so changing any component re-renders every component. Without this the same escaping reached the components that are not lists, and a `country` reading `Congo\, The Democratic Republic of the` came back changed by an edit to the street beside it.
+
+### Changed
+
+- The inline comments share one column across a card, where each block used to pick its own.
+
+  Scrolling the form, the comments stepped in and out at every section. The card is the unit rather than the file, which is what tCal measures per component, so the two now agree.
+
+### Added
+
+- Added inline hints to the name components, `additional` above all: the RFC role names say what a name is rather than where it is written, which is what varies between cultures, but nobody guesses that one means the middle names.
+
 ## [0.1.0] - 2026-08-30
 
 ### Added

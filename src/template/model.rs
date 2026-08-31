@@ -3,8 +3,6 @@
 //! The vCard properties the form shows: how each maps to a TOML key, and how
 //! it projects and reads back.
 
-use core::slice;
-
 use alloc::{
     borrow::ToOwned,
     format,
@@ -19,15 +17,28 @@ use vcard::version::VcardVersion;
 use crate::template::{
     datetime::{date_rhs, toml_date_value},
     line::{Line, Lines},
-    patch::{Content, escape, named},
+    patch::{Content, escape, items, named, unescape},
     toml::{read_components, read_type, tables, toml_array, toml_str},
 };
 
 /// A named component of a structured value.
-///
-/// Its TOML key, an optional hint, and whether it is deprecated: hidden in
-/// vCard 4.0, flagged `# deprecated` in older versions.
-pub type Component = (&'static str, Option<&'static str>, bool);
+pub struct Component {
+    /// TOML key the component is written under.
+    pub key: &'static str,
+    /// Inline hint, where the key does not say what it holds.
+    pub hint: Option<&'static str>,
+    /// Hidden in vCard 4.0, flagged `# deprecated` in older versions, its
+    /// positional slot surviving either way.
+    pub deprecated: bool,
+    /// Whether the component holds several values, comma-separated on the
+    /// vCard side and an array in the form.
+    ///
+    /// RFC 6350 section 6.2.2: "Individual text components can include
+    /// multiple text values separated by the COMMA character". A component
+    /// that does and is typed as one string cannot tell that comma from a
+    /// comma someone typed, and escapes it on the way out.
+    pub list: bool,
+}
 
 /// Whether a property is required, possibly only in legacy versions.
 #[derive(Clone, Copy)]
@@ -104,12 +115,41 @@ pub struct Field {
 }
 
 /// `N` components, in RFC 6350 order.
+///
+/// The RFC names them for the role rather than the position, which is what
+/// varies between cultures, so the hints carry the familiar spelling
+/// instead. All five hold lists (section 6.2.2).
 const NAME_COMPONENTS: &[Component] = &[
-    ("family", None, false),
-    ("given", None, false),
-    ("additional", None, false),
-    ("prefixes", None, false),
-    ("suffixes", None, false),
+    Component {
+        key: "family",
+        hint: Some("last name(s)"),
+        deprecated: false,
+        list: true,
+    },
+    Component {
+        key: "given",
+        hint: Some("first name(s)"),
+        deprecated: false,
+        list: true,
+    },
+    Component {
+        key: "additional",
+        hint: Some("middle name(s)"),
+        deprecated: false,
+        list: true,
+    },
+    Component {
+        key: "prefixes",
+        hint: Some("Dr., Mr."),
+        deprecated: false,
+        list: true,
+    },
+    Component {
+        key: "suffixes",
+        hint: Some("Jr., PhD"),
+        deprecated: false,
+        list: true,
+    },
 ];
 
 /// `ADR` components, in RFC 6350 order.
@@ -117,19 +157,69 @@ const NAME_COMPONENTS: &[Component] = &[
 /// RFC 6350 deprecates `pobox` and `ext`: put the box and any suite or floor
 /// in `street` instead.
 const ADR_COMPONENTS: &[Component] = &[
-    ("pobox", None, true),
-    ("ext", None, true),
-    ("street", None, false),
-    ("locality", None, false),
-    ("region", None, false),
-    ("code", None, false),
-    ("country", None, false),
+    Component {
+        key: "pobox",
+        hint: None,
+        deprecated: true,
+        list: false,
+    },
+    Component {
+        key: "ext",
+        hint: None,
+        deprecated: true,
+        list: false,
+    },
+    // NOTE: section 6.3.1 allows several values "where it makes semantic
+    // sense" and names a street with multiple lines as the case, which is
+    // the only one of the seven where it does.
+    Component {
+        key: "street",
+        hint: None,
+        deprecated: false,
+        list: true,
+    },
+    Component {
+        key: "locality",
+        hint: None,
+        deprecated: false,
+        list: false,
+    },
+    Component {
+        key: "region",
+        hint: None,
+        deprecated: false,
+        list: false,
+    },
+    Component {
+        key: "code",
+        hint: None,
+        deprecated: false,
+        list: false,
+    },
+    Component {
+        key: "country",
+        hint: None,
+        deprecated: false,
+        list: false,
+    },
 ];
 
 /// `GENDER` components: sex code plus a free-text identity.
 const GENDER_COMPONENTS: &[Component] = &[
-    ("sex", Some("F, M, O, N, U"), false),
-    ("identity", None, false),
+    // NOTE: neither holds a list, the sex being one code and the identity
+    // free-form text (section 6.2.7).
+    Component {
+        key: "sex",
+        hint: Some("F, M, O, N, U"),
+        deprecated: false,
+        list: false,
+    },
+    Component {
+        key: "identity",
+        hint: None,
+        deprecated: false,
+        list: false,
+    },
 ];
 
 /// The `TYPE` set of a property naming a place (`EMAIL`, `ADR`, `URL`).
@@ -356,7 +446,7 @@ impl Field {
             Kind::Structured(components) => {
                 let values = held
                     .first()
-                    .map(|line| Content(line).texts(';'))
+                    .map(|line| Content(line).items(';'))
                     .unwrap_or_default();
 
                 lines.push(format!("[{header}]"), hint);
@@ -394,7 +484,7 @@ impl Field {
 
                     lines.push(format!("[[{header}]]"), None);
                     lines.extend(self.type_lines(&line.types().join(",")));
-                    lines.extend(component_lines(components, &line.texts(';'), version));
+                    lines.extend(component_lines(components, &line.items(';'), version));
                 }
             }
         }
@@ -432,21 +522,26 @@ impl Field {
 
             Kind::List { sep } => {
                 if let Some(array) = item.as_array() {
+                    // NOTE: `ORG`'s components are positional, so an empty
+                    // one is a slot rather than nothing to say.
                     let ordered = *sep == ';';
-                    let parts: Vec<String> = array
+                    let values: Vec<&str> = array
                         .iter()
                         .filter_map(|value| value.as_str())
                         .filter(|value| ordered || !value.is_empty())
-                        .map(escape)
                         .collect();
 
-                    let parts = match parts.iter().all(String::is_empty) {
+                    let values = match values.iter().all(|value| value.is_empty()) {
                         true => Vec::new(),
-                        false => parts,
+                        false => values,
                     };
 
-                    for (original, items) in spread(&parts, originals, *sep) {
-                        let value = items.join(&sep.to_string());
+                    // NOTE: matched and spread as the values they are, then
+                    // escaped on the way out: an item is the same item
+                    // however the card happened to spell its escapes.
+                    for (original, items) in spread(&values, originals, *sep) {
+                        let escaped: Vec<String> = items.iter().map(|item| escape(item)).collect();
+                        let value = escaped.join(&sep.to_string());
                         lines.push(self.line(original, None, &value));
                     }
                 }
@@ -532,40 +627,84 @@ impl Field {
     }
 }
 
-/// Spread a field's items over the lines they came from.
+/// Give a field's items back to the lines they came from.
 ///
-/// Each original keeps the items it held and a surplus opens its own line, so
-/// two properties of one name (`LANG;PREF=1:fr`, `LANG;PREF=2:en`) never
-/// collapse. A `;` instead joins one property's components (`ORG`), one line.
+/// An item belongs to the line whose value held it, because a line's
+/// parameters describe the items that line carried. Counting them off the
+/// front of the array instead hands each line whatever has room, so removing
+/// one item relabels every item behind it: `NICKNAME;PREF=2:Big Tuna` becomes
+/// the preferred one and its own line disappears.
+///
+/// An item no line held fills the room a line lost, in document order, which
+/// is how renaming an item rewrites its own line. Whatever is left over shares
+/// one new line, and a line left with no items is dropped.
 fn spread<'i, 'o>(
-    items: &'i [String],
+    items: &[&'i str],
     originals: &'o [String],
     sep: char,
-) -> Vec<(Option<&'o String>, &'i [String])> {
+) -> Vec<(Option<&'o String>, Vec<&'i str>)> {
     if items.is_empty() {
         return Vec::new();
     }
 
-    if sep == ';' {
-        return vec![(originals.first(), items)];
+    // NOTE: a `;` joins one property's own components (`ORG`) rather than
+    // several properties, so there is one line by construction. At most one
+    // line leaves nothing to disambiguate either, so the items are that line,
+    // in the order the document wrote them.
+    if sep == ';' || originals.len() < 2 {
+        return vec![(originals.first(), items.to_vec())];
     }
 
-    let mut out = Vec::new();
-    let mut rest = items;
+    let held: Vec<Vec<String>> = originals
+        .iter()
+        .map(|line| Content(line).texts(sep))
+        .collect();
+    let mut free: Vec<Vec<bool>> = held.iter().map(|texts| vec![true; texts.len()]).collect();
+    let mut owners: Vec<Option<usize>> = Vec::with_capacity(items.len());
 
-    for original in originals {
-        if rest.is_empty() {
+    for item in items.iter().copied() {
+        let mut owner = None;
+
+        for (at, texts) in held.iter().enumerate() {
+            let Some(slot) = (0..texts.len()).find(|slot| free[at][*slot] && texts[*slot] == item)
+            else {
+                continue;
+            };
+
+            free[at][slot] = false;
+            owner = Some(at);
             break;
         }
 
-        let held = Content(original).items(sep).len().clamp(1, rest.len());
-        let (head, tail) = rest.split_at(held);
-        out.push((Some(original), head));
-        rest = tail;
+        owners.push(owner);
     }
 
-    out.extend(rest.iter().map(|item| (None, slice::from_ref(item))));
-    out
+    let mut room: Vec<usize> = free
+        .iter()
+        .map(|slots| slots.iter().filter(|free| **free).count())
+        .collect();
+    let mut kept: Vec<Vec<&str>> = held.iter().map(|_| Vec::new()).collect();
+    let mut opened = Vec::new();
+
+    for (item, owner) in items.iter().copied().zip(owners) {
+        match owner.or_else(|| room.iter().position(|room| *room > 0)) {
+            Some(at) => {
+                room[at] -= usize::from(owner.is_none());
+                kept[at].push(item);
+            }
+            // NOTE: one line for the lot rather than one line each. Which
+            // line's parameters they should have carried is the question
+            // several lines make unanswerable, so they carry none, together.
+            None => opened.push(item),
+        }
+    }
+
+    kept.into_iter()
+        .zip(originals)
+        .filter(|(items, _)| !items.is_empty())
+        .map(|(items, original)| (Some(original), items))
+        .chain((!opened.is_empty()).then_some((None, opened)))
+        .collect()
 }
 
 /// Join structured components with `;`, dropping trailing empties.
@@ -600,20 +739,35 @@ fn shown<'t>(types: &[&str], table: &'t dyn TableLike) -> Option<&'t str> {
 ///
 /// A deprecated component is hidden in vCard 4.0 and flagged in older
 /// versions; either way its positional slot survives apply, read back by key.
-fn component_lines(components: &[Component], values: &[String], version: VcardVersion) -> Lines {
+fn component_lines(components: &[Component], values: &[&str], version: VcardVersion) -> Lines {
     components
         .iter()
         .enumerate()
-        .filter(|(_, component)| !component.2 || version != VcardVersion::V4_0)
-        .map(|(index, (name, hint, deprecated))| {
-            let value = values.get(index).map(String::as_str).unwrap_or_default();
-            let hint = match deprecated {
+        .filter(|(_, component)| !component.deprecated || version != VcardVersion::V4_0)
+        .map(|(index, component)| {
+            let raw = values.get(index).copied().unwrap_or_default();
+            let hint = match component.deprecated {
                 true => Some("deprecated".to_owned()),
-                false => hint.map(str::to_owned),
+                false => component.hint.map(str::to_owned),
+            };
+
+            // NOTE: the component is split before it is unescaped, so a
+            // comma the card meant as a separator becomes a second value
+            // rather than text. Unescaping first would lose the two apart.
+            let rhs = match component.list {
+                // NOTE: an absent component is an empty array, not an array
+                // holding one empty value: splitting "" yields one item, and
+                // the form would show a slot nobody asked for.
+                true if raw.is_empty() => toml_array::<&str>(&[]),
+                true => {
+                    let values: Vec<String> = items(raw, ',').into_iter().map(unescape).collect();
+                    toml_array(&values)
+                }
+                false => toml_str(&unescape(raw)),
             };
 
             Line {
-                lhs: format!("{name} = {}", toml_str(value)),
+                lhs: format!("{} = {rhs}", component.key),
                 hint,
             }
         })

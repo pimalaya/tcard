@@ -17,45 +17,45 @@ geo = ""					# geo:37.78,-122.40
 timezone = ""					# America/New_York
 note = 'THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.'
 
-[name]	# required
-family = "Doe"
-given = "John"
-additional = "Richter, James"
-prefixes = "Mr."
-suffixes = "Sr."
+[name]						# required
+family = ["Doe"]				# last name(s)
+given = ["John"]				# first name(s)
+additional = ["Richter, James"]			# middle name(s)
+prefixes = ["Mr."]				# Dr., Mr.
+suffixes = ["Sr."]				# Jr., PhD
 
 [gender]
-sex = ""	# F, M, O, N, U
+sex = ""					# F, M, O, N, U
 identity = ""
 
 [[email]]
-type = "WORK"			# home, work
-value = "john.doe@ibm.com"	# email address
+type = "WORK"					# home, work
+value = "john.doe@ibm.com"			# email address
 
 [[phone]]
-type = "CELL"		# home, work, cell, fax, voice, video, pager, text, textphone
-value = "905-666-1234"	# +1-555-0100
+type = "CELL"					# home, work, cell, fax, voice, video, pager, text, textphone
+value = "905-666-1234"				# +1-555-0100
 [[phone]]
-type = "WORK,VOICE"	# home, work, cell, fax, voice, video, pager, text, textphone
-value = "905-555-1234"	# +1-555-0100
+type = "WORK,VOICE"				# home, work, cell, fax, voice, video, pager, text, textphone
+value = "905-555-1234"				# +1-555-0100
 
 [[address]]
-type = "HOME"		# home, work
-pobox = "ASB-123"	# deprecated
-ext = ""		# deprecated
-street = "15 Crescent moon drive"
+type = "HOME"					# home, work
+pobox = "ASB-123"				# deprecated
+ext = ""					# deprecated
+street = ["15 Crescent moon drive"]
 locality = "Albaney"
 region = "New York"
 code = "12345"
 country = "United States of America"
 
 [[photo]]
-value = ""	# file:// or https://
+value = ""					# file:// or https://
 
 [[url]]
-type = ""			# home, work
-value = "http://www.ibm.com"	# https://example.com
+type = ""					# home, work
+value = "http://www.ibm.com"			# https://example.com
 
 [[messaging]]
-type = ""	# home, work
-value = ""	# xmpp:jane@example.com
+type = ""					# home, work
+value = ""					# xmpp:jane@example.com

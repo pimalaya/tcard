@@ -18,14 +18,14 @@ timezone = "-0500"			# America/New_York
 note = ""
 
 [name]
-family = "Perreault"
-given = "Simon"
-additional = ""
-prefixes = ""
-suffixes = "ing. jr,M.Sc."
+family = ["Perreault"]			# last name(s)
+given = ["Simon"]			# first name(s)
+additional = []				# middle name(s)
+prefixes = []				# Dr., Mr.
+suffixes = ["ing. jr", "M.Sc."]		# Jr., PhD
 
 [gender]
-sex = "M"	# F, M, O, N, U
+sex = "M"				# F, M, O, N, U
 identity = ""
 
 [[email]]
@@ -40,20 +40,20 @@ type = "work,cell,voice,video,text"	# home, work, cell, fax, voice, video, pager
 value = "tel:+1-418-262-6501"		# +1-555-0100
 
 [[address]]
-type = "work"	# home, work
-street = "2875 Laurier"
+type = "work"				# home, work
+street = ["2875 Laurier"]
 locality = "Quebec"
 region = "QC"
 code = "G1V 2M2"
 country = "Canada"
 
 [[photo]]
-value = ""	# file:// or https://
+value = ""				# file:// or https://
 
 [[url]]
-type = "home"			# home, work
-value = "http://nomis80.org"	# https://example.com
+type = "home"				# home, work
+value = "http://nomis80.org"		# https://example.com
 
 [[messaging]]
-type = ""	# home, work
-value = ""	# xmpp:jane@example.com
+type = ""				# home, work
+value = ""				# xmpp:jane@example.com

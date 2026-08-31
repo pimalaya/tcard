@@ -15,7 +15,10 @@ use alloc::{
 
 use toml_edit::{Array, Item, TableLike, Value};
 
-use crate::template::patch::{Content, escape};
+use crate::template::{
+    model::Component,
+    patch::{Content, escape, items, unescape},
+};
 
 /// Render a string as a quoted, escaped TOML scalar.
 pub fn toml_str(value: &str) -> String {
@@ -53,9 +56,14 @@ pub fn tables(item: &Item) -> Vec<&dyn TableLike> {
 /// Each positional slot is preserved. A component the document does not write
 /// is one the version hides (`pobox`, `ext` in vCard 4.0), so it is taken from
 /// the line the value came from: hiding one is not licence to drop it.
+///
+/// A component the document left as the card already meant it is taken from
+/// the card too. A structured value is one line, so changing any component
+/// re-renders every component, and a comma the card used as a separator would
+/// otherwise be escaped into the value on the way past.
 pub fn read_components(
     table: &dyn TableLike,
-    components: &[(&str, Option<&str>, bool)],
+    components: &[Component],
     original: Option<&String>,
 ) -> Vec<String> {
     let held = original
@@ -65,16 +73,60 @@ pub fn read_components(
     components
         .iter()
         .enumerate()
-        .map(
-            |(index, (name, _, _))| match table.get(name).and_then(|item| item.as_str()) {
-                Some(value) => escape(value),
-                None => held
-                    .get(index)
-                    .map(|part| (*part).to_owned())
-                    .unwrap_or_default(),
-            },
-        )
+        .map(|(index, component)| {
+            let held = held.get(index).copied().unwrap_or_default();
+
+            let Some(written) = read_component(table, component) else {
+                return held.to_owned();
+            };
+
+            match written == component_of(held, component) {
+                true => held.to_owned(),
+                false => written,
+            }
+        })
         .collect()
+}
+
+/// One component as the document writes it, escaped for the vCard.
+///
+/// A list joins its values on commas, each escaped on its own, and accepts a
+/// bare string as the single value it is: reading stays liberal, and only what
+/// a fold-back writes is canonical.
+fn read_component(table: &dyn TableLike, component: &Component) -> Option<String> {
+    let item = table.get(component.key)?;
+
+    if !component.list {
+        return item.as_str().map(escape);
+    }
+
+    if let Some(value) = item.as_str() {
+        return Some(escape(value));
+    }
+
+    let values = item.as_array()?;
+    let escaped: Vec<String> = values
+        .iter()
+        .filter_map(Value::as_str)
+        .map(escape)
+        .collect();
+
+    Some(escaped.join(","))
+}
+
+/// The card's own component, canonicalized the way a fold-back writes one.
+///
+/// Comparing against this rather than against the raw bytes is what lets a
+/// needless escape be dropped while a real separator is kept.
+fn component_of(held: &str, component: &Component) -> String {
+    match component.list {
+        true => items(held, ',')
+            .into_iter()
+            .map(|value| escape(&unescape(value)))
+            .collect::<Vec<_>>()
+            .join(","),
+        false => escape(&unescape(held)),
+    }
 }
 
 /// The `type` a TOML table writes, empty when it writes none.

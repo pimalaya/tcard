@@ -67,6 +67,17 @@
 //! flagged in older versions, and on apply written back from the card's own
 //! line into its slot, since hiding a component is no licence to drop it.
 //!
+//! A component can also hold a list, which RFC 6350 section 6.2.2 allows for
+//! all five of `N`'s and section 6.3.1 for `ADR`'s street. Those project as
+//! TOML arrays and read back joined on commas, each value escaped on its own.
+//! A component typed as one string could not tell a separator the card wrote
+//! from a comma someone typed, and escaped the first into the value.
+//!
+//! A structured value is one line, so changing any component re-renders every
+//! component. What saves the rest is that a component whose form value still
+//! means what the card's own component meant is written back from the card's
+//! bytes, the same rule the line follows one level up.
+//!
 //! `UID` and `VERSION` are deliberately absent. They are app-managed, seeded
 //! for a new card and preserved for every other one.
 //!
@@ -77,9 +88,10 @@
 //! the sectioned properties follow it. That order is the format's rule rather
 //! than a preference.
 //!
-//! Inline hints within a block share one column, reached with tabs a stop
-//! past the widest hinted line, so filling a value shifts the comments as
-//! little as it can.
+//! Inline hints share one column across a card, reached with tabs a stop past
+//! the widest hinted line, so the comments read as one column down the page
+//! rather than stepping in and out at every section. The card is the unit
+//! rather than the file, which is what tCal measures per component.
 //!
 //! ## The merge
 //!
@@ -109,7 +121,7 @@
 //! The projection's own layer sits under it, private to the crate: model holds
 //! the static vocabulary, patch the content-line grammar a fold-back reads and
 //! writes through, toml the TOML side of the same, datetime the dates and line
-//! the blocks whose hints share a column.
+//! the blocks and the column their hints share.
 //!
 //! The merge splits the same way: choice turns a collision into the key it
 //! contests, document writes that key into the projection, and note says what

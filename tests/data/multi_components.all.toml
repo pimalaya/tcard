@@ -3,7 +3,7 @@
 # Fill what you need; empty fields are ignored. Properties
 # tCard does not model are kept verbatim, not shown here.
 
-full-name = "Ada Lovelace"		# required
+full-name = "John Stevenson"		# required
 kind = ""				# individual, group, org
 nickname = []
 organization = []
@@ -15,34 +15,34 @@ birthday = ""				# 1996-04-15, or "--0415" without a year
 anniversary = ""			# 2009-08-08
 geo = ""				# geo:37.78,-122.40
 timezone = ""				# America/New_York
-note = "A note long enough that an exporter folds it at seventy-five octets, which is where this one breaks and carries on."
+note = ""
 
 [name]
-family = ["Lovelace"]			# last name(s)
-given = ["Ada"]				# first name(s)
-additional = []				# middle name(s)
-prefixes = []				# Dr., Mr.
-suffixes = []				# Jr., PhD
+family = ["Stevenson"]			# last name(s)
+given = ["John"]			# first name(s)
+additional = ["Philip", "Paul"]		# middle name(s)
+prefixes = ["Dr."]			# Dr., Mr.
+suffixes = ["Jr.", "M.D.", "A.C.P."]	# Jr., PhD
 
 [gender]
 sex = ""				# F, M, O, N, U
 identity = ""
 
 [[email]]
-type = "work"				# home, work
-value = "ada@analytical.example"	# email address
+type = ""				# home, work
+value = ""				# email address
 
 [[phone]]
 type = ""				# home, work, cell, fax, voice, video, pager, text, textphone
 value = ""				# +1-555-0100
 
 [[address]]
-type = ""				# home, work
-street = []
-locality = ""
-region = ""
-code = ""
-country = ""
+type = "work"				# home, work
+street = ["123 Main St", "Apt 4"]
+locality = "Springfield"
+region = "IL"
+code = "62701"
+country = "Congo, The Democratic Republic of the"
 
 [[photo]]
 value = ""				# file:// or https://

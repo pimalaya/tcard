@@ -93,3 +93,37 @@ The mod.rs choice is content-based. A folder whose mod.rs holds nothing but modu
 - GIVEN the projection engine and the leaf modules it declares
 - WHEN the source tree is read
 - THEN the engine is src/template.rs and the leaf modules are files under src/template/
+
+### Requirement: A structured component that holds a list is typed as one
+A component of a structured value SHALL declare whether it holds several values, and a component that does SHALL project as a TOML array and read back as the comma-separated list RFC 6350 section 6.2.2 defines, each value escaped on its own.
+
+`N`'s five components hold lists. `ADR`'s street does, section 6.3.1 naming a multi-line street as the case; its six others do not, the RFC allowing them "where it makes semantic sense" and no sense being served by an array of postal codes. `GENDER`'s two do not, its sex being one code and its identity free-form text.
+
+An absent component SHALL project as an empty array rather than an array holding one empty value. A bare string SHALL be accepted where an array is expected, and read as the one value it is: reading stays liberal, and only what a fold-back writes is canonical.
+
+### Requirement: A component the document did not change keeps its bytes
+When the value a document holds for a component still means what the card's own component meant, that component SHALL go back out as the card wrote it rather than being re-escaped from the form.
+
+This is the rule the line already follows, applied one level down, and it is what a scalar component depends on: a structured value is one line, so changing any component re-renders every component, and a comma the card used as a separator would otherwise be escaped into the value on the way past. It is also what lets a needless escape be dropped, the comparison being against what a fold-back would write rather than against the raw bytes.
+
+### Requirement: A name component says what it is
+The `N` components SHALL keep the RFC's role names, `family` and `given` naming what a name is rather than where it is written, which is what varies between cultures. Each SHALL carry an inline hint saying which name it holds, `additional` above all, whose meaning nobody guesses.
+
+### Requirement: Inline comments share one column across the card
+The inline `#` hints SHALL align on one column measured over the whole card, not one per block: the first tab stop past the widest hinted left side anywhere in it, so every hinted line reaches it with at least one tab.
+
+A column per section makes the comments step in and out as the reader scrolls, each block setting its own by whatever its widest value happens to be. One column reads as one column.
+
+The card is the unit rather than the file, which is what tCal measures per component: a long value on one card would otherwise push every other card's comments out with it. Reading a form is the same job in both crates, so they align the same way.
+
+### Requirement: A list item goes back to the line it came from
+An item of a repeatable property SHALL be given back to the line whose value held it, matched by value rather than by position. A line's parameters describe the items that line carried, so counting items off the front of the array hands each line whatever has room and relabels every item behind a removed one.
+
+An item no line held SHALL fill the room a line lost, in document order, so renaming an item rewrites its own line. Whatever is left over SHALL share one new line, which carries no parameters: which line's it should have carried is the question several lines make unanswerable. A line left with no items SHALL be removed.
+
+Matching SHALL be on the values rather than on their escaping, the escaping being applied on the way out, so an item is the same item however the card happened to spell it.
+
+### Requirement: One line leaves nothing to disambiguate
+A property holding at most one line SHALL take the array as that line's items, in the order the document wrote them. There is no second line to attribute an item to, so an added item joins the line and its parameters rather than opening a bare second one.
+
+A `;`-joined property (`ORG`) SHALL likewise stay one line: the separator joins one property's own components rather than several properties.

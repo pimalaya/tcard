@@ -50,3 +50,6 @@ pimalaya-cli = { version = "0.2", default-features = false, features = ["prompt"
 toml_edit = "0.25"
 uuid = { version = "1", features = ["v4"], optional = true }
 vcard-rs = { version = "0.3", default-features = false, features = ["parser"] }
+
+[patch.crates-io]
+vcard-rs.git = "https://github.com/pimalaya/vcard"
