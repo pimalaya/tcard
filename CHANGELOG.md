@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### Added
+
+- Added `apply <TEMPLATE> [SOURCE]`, which folds an edited TOML document back onto the card it was projected from, with no editor in the middle.
+
+  `template` went one way and only `edit` came back, so a form edited by anything other than tCard's own editor, a script, a filter, a graphical app, could not be folded back at all. `tcard apply form.toml contact.vcf` closes the round trip, and `-` reads the document from stdin. A document that does not parse, or that leaves a merge collision undecided, is an error here rather than a question. It writes the source file back in place, as `edit` does, `--output` sending the result elsewhere.
+
 ## [0.2.0] - 2026-09-01
 
 ### Added

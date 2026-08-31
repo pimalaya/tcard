@@ -38,7 +38,7 @@ TEL;TYPE=cell:+1-555-0100
 END:VCARD
 ```
 
-This repository ships two interfaces: a Rust library projecting a card to TOML and folding the edits back, and a CLI printing, editing and merging cards through `$EDITOR`.
+This repository ships two interfaces: a Rust library projecting a card to TOML and folding the edits back, and a CLI printing, editing and merging cards through `$EDITOR`, or folding an already edited form back with `apply`.
 
 ## Table of contents
 
@@ -138,6 +138,8 @@ tcard edit - < contact.vcf > updated.vcf
 tcard edit --output alice.vcf
 tcard edit --version 3.0 --output bob.vcf
 tcard edit --editor "code --wait" contact.vcf
+tcard apply form.toml contact.vcf           # fold an edited form back, no editor
+tcard template contact.vcf | edit-somehow | tcard apply - contact.vcf
 tcard merge base.vcf local.vcf remote.vcf --output merged.vcf
 ```
 

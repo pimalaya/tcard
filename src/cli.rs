@@ -13,6 +13,7 @@
 //! omitting it starts from a blank template. The only path back to a vCard is
 //! `edit`, where the card the form came from is still in hand.
 
+pub mod apply;
 pub mod args;
 pub mod edit;
 pub mod editor;
@@ -32,7 +33,9 @@ use pimalaya_cli::{
     printer::Printer,
 };
 
-use crate::cli::{edit::EditCommand, merge::MergeCommand, template::TemplateCommand};
+use crate::cli::{
+    apply::ApplyCommand, edit::EditCommand, merge::MergeCommand, template::TemplateCommand,
+};
 
 /// The tCard command-line interface.
 ///
@@ -62,6 +65,7 @@ pub enum Command {
     #[command(visible_alias = "tpl")]
     Template(TemplateCommand),
     Edit(EditCommand),
+    Apply(ApplyCommand),
     Merge(MergeCommand),
     #[command(alias = "completions")]
     Completion(CompletionCommand),
@@ -73,6 +77,7 @@ impl Command {
     pub fn execute(self, printer: &mut impl Printer) -> Result<()> {
         match self {
             Self::Template(cmd) => cmd.execute(printer),
+            Self::Apply(cmd) => cmd.execute(printer),
             Self::Edit(cmd) => cmd.execute(printer),
             Self::Merge(cmd) => cmd.execute(printer),
             Self::Completion(cmd) => cmd.execute(printer, Cli::command()),
