@@ -701,4 +701,35 @@ mod tests {
 
         assert!(matches!(err, TcardError::ReadFile { .. }), "{err}");
     }
+
+    #[test]
+    fn an_armoured_key_is_its_digest() {
+        let src = "BEGIN:VCARD\r\nVERSION:3.0\r\nFN:A\r\n\
+            KEY;TYPE=PGP:-----BEGIN PGP PUBLIC KEY BLOCK-----\\nmQENBF\r\nEND:VCARD\r\n";
+        let toml = project(src);
+
+        assert!(
+            toml.contains("[[key]]\nembedded.type = \"application/pgp-keys\""),
+            "{toml}"
+        );
+        assert!(!toml.contains("mQENBF"), "{toml}");
+        assert_eq!(apply(src, &toml), src);
+    }
+
+    #[test]
+    fn a_legacy_sound_names_its_media_type() {
+        let src = "BEGIN:VCARD\r\nVERSION:3.0\r\nFN:A\r\n\
+            SOUND;ENCODING=b;TYPE=WAVE:UklGRg==\r\nLOGO;VALUE=uri:https://x/l.png\r\nEND:VCARD\r\n";
+        let toml = project(src);
+
+        assert!(
+            toml.contains("[[sound]]\nembedded.type = \"audio/wav\""),
+            "{toml}"
+        );
+        assert!(
+            toml.contains("[[logo]]\nuri = \"https://x/l.png\""),
+            "{toml}"
+        );
+        assert_eq!(apply(src, &toml), src);
+    }
 }

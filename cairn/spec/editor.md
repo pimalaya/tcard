@@ -32,3 +32,6 @@ A non-zero exit status SHALL abandon the round trip and report it.
 The re-open loop SHALL survive a reader who declines it: when a document that does not fold back is not re-edited, the temporary file SHALL be kept and the error SHALL name its path. A minute of typing outlives the run that produced it, and the path is the recovery. A round trip that folded back SHALL remove the file.
 
 An editor that could not be spawned at all SHALL remove it instead: the file then holds nothing but what tCard wrote a moment earlier.
+
+### Requirement: The editor re-opens on a document it cannot fold
+`edit` and `merge` SHALL offer to re-open the editor on every refusal to fold the document back, and on none about the card it came from.

@@ -85,13 +85,10 @@ impl Editor<'_> {
                 Err(err) => err,
             };
 
-            let recoverable = matches!(
-                err,
-                TcardError::ParseToml(_)
-                    | TcardError::Undecided(_)
-                    | TcardError::UnknownEmbedded(_)
-                    | TcardError::ReadFile { .. }
-            );
+            // NOTE: every refusal is about the document, which the reader can
+            // fix, but the card it came from, which they cannot from here.
+            let recoverable =
+                !matches!(err, TcardError::ParseVcard(_) | TcardError::ReadCard { .. });
 
             if !recoverable || printer.is_json() || !prompt::bool(reprompt(&err), true)? {
                 return Err(keep(&path, err.into()));

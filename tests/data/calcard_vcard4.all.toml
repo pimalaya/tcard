@@ -57,6 +57,12 @@ country = "United States of America"
 [[photo]]
 uri = "http://www.example.com/dir_photos/my_photo.gif"
 
+[[logo]]
+file = ""				# a local image, or uri = "https://"
+
+[[sound]]
+file = ""				# a local sound, or uri = "https://"
+
 [[url]]
 type = ""				# home, work
 value = ""				# https://example.com
@@ -64,3 +70,6 @@ value = ""				# https://example.com
 [[messaging]]
 type = ""				# home, work
 value = ""				# xmpp:jane@example.com
+
+[[key]]
+file = ""				# a local key, or uri = "https://"

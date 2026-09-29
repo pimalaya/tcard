@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
   `template` went one way and only `edit` came back, so a form edited by anything other than tCard's own editor, a script, a filter, a graphical app, could not be folded back at all. `tcard apply form.toml contact.vcf` closes the round trip, and `-` reads the document from stdin. A document that does not parse, or that leaves a merge collision undecided, is an error here rather than a question. It writes the source file back in place, as `edit` does, `--output` sending the result elsewhere.
 
+- Added `LOGO`, `SOUND` and `KEY` to the form, each one of `embedded`, `file` or `uri` as a photo is.
+
+  A vCard 2.1 or 3.0 `TYPE` is read as the media type it names (`WAVE` is `audio/wav`, `PGP` is `application/pgp-keys`), and a key written as text, an armoured PGP block among them, is shown as the digest of that text.
+
 ### Changed
 
 - A photo is now one of `embedded`, `file` or `uri`, replacing `value` ([#1]).
@@ -19,6 +23,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
   An inline photo shows as `embedded.type` and `embedded.sha256`, the digest `sha256sum` prints, instead of its base64, and comes back byte for byte when left alone. `file = "~/me.jpg"` inlines a local image at the card's version, as a `data:` URI in 4.0 or base64 in 3.0 and 2.1, so replacing a photo is swapping its `embedded` for a `file`. A reference is `uri`, kept as written. An unknown digest and an unreadable file are refused.
 
   A photo both sides of a merge changed is settled by the merge and noted in the header, since the merged card only holds one side's bytes.
+
+- `edit` and `merge` now offer to re-open the editor on any document that does not fold back, rather than on broken TOML and undecided collisions only.
 
 ## [0.2.0] - 2026-09-01
 

@@ -49,6 +49,12 @@ country = "USA"
 [[photo]]
 uri = "https://example.com/john.png"
 
+[[logo]]
+file = ""			# a local image, or uri = "https://"
+
+[[sound]]
+file = ""			# a local sound, or uri = "https://"
+
 [[url]]
 type = "pref"			# home, work
 value = "https://www.apple.com"	# https://example.com
@@ -56,3 +62,6 @@ value = "https://www.apple.com"	# https://example.com
 [[messaging]]
 type = ""			# home, work
 value = ""			# xmpp:jane@example.com
+
+[[key]]
+file = ""			# a local key, or uri = "https://"

@@ -116,5 +116,5 @@ The header is prose a person reads before anything else, and a line running past
 - WHEN the document is projected
 - THEN it is written over two comment lines, the second indented under the first line's text
 
-### Requirement: A photo collision is settled, not offered
-A photo both sides changed SHALL be settled by the merge and said in the header rather than written as a choice. The merged card holds one side's bytes, so a digest naming the other side's would not fold back.
+### Requirement: A media collision is settled, not offered
+A media value (`PHOTO`, `LOGO`, `SOUND`, `KEY`) both sides changed SHALL be settled by the merge and said in the header rather than written as a choice. The merged card holds one side's bytes, so a digest naming the other side's would not fold back.

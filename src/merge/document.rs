@@ -107,7 +107,7 @@ impl Document {
                 return self.find_key(0, choice.key, taken);
             }
             Kind::Structured(_) => self.headers(&format!("[{}]", choice.field.key)),
-            Kind::Typed { .. } | Kind::TypedStructured { .. } | Kind::Media => {
+            Kind::Typed { .. } | Kind::TypedStructured { .. } | Kind::Media(_) => {
                 self.headers(&format!("[[{}]]", choice.field.key))
             }
         };

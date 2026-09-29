@@ -50,6 +50,12 @@ country = "Canada"
 [[photo]]
 file = ""				# a local image, or uri = "https://"
 
+[[logo]]
+file = ""				# a local image, or uri = "https://"
+
+[[sound]]
+file = ""				# a local sound, or uri = "https://"
+
 [[url]]
 type = "home"				# home, work
 value = "http://nomis80.org"		# https://example.com
@@ -57,3 +63,6 @@ value = "http://nomis80.org"		# https://example.com
 [[messaging]]
 type = ""				# home, work
 value = ""				# xmpp:jane@example.com
+
+[[key]]
+uri = "http://www.viagenie.ca/simon.perreault/simon.asc"

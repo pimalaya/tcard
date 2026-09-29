@@ -60,8 +60,9 @@
 //! A kind is one of six. A scalar is one value, a list joins several on a
 //! separator, a structured value expands into named components instead of
 //! bare semicolons, a typed property repeats as sections carrying an optional
-//! `TYPE`, a typed structured one is both, and a media one (`PHOTO`) is bytes
-//! the card carries, shown as their SHA-256, or a reference.
+//! `TYPE`, a typed structured one is both, and a media one (`PHOTO`, `LOGO`,
+//! `SOUND`, `KEY`) is bytes the card carries, shown as their SHA-256, or a
+//! reference.
 //!
 //! A media value names a local file to inline. The crate reads none itself:
 //! [`template::TcardTemplate::files`] is the reader its caller hands it, the

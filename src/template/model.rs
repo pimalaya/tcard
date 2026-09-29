@@ -20,7 +20,7 @@ use crate::{
         TcardTemplate,
         datetime::{date_rhs, toml_date_value},
         line::{Line, Lines},
-        media::{Media, inlined, referenced},
+        media::{Media, MediaFormat, inlined, referenced},
         patch::{Content, escape, items, named, unescape},
         toml::{read_components, read_type, tables, toml_array, toml_str},
     },
@@ -94,11 +94,12 @@ pub enum Kind {
         /// The named components, in the order the vCard writes them.
         components: &'static [Component],
     },
-    /// Repeatable picture, as bytes the card carries or a reference (`PHOTO`).
+    /// Repeatable bytes, carried by the card or referenced (`PHOTO`, `LOGO`,
+    /// `SOUND`, `KEY`).
     ///
     /// Each instance is one of `embedded` (the digest of inline bytes), `file`
     /// (a path to inline) or `uri`.
-    Media,
+    Media(MediaFormat),
 }
 
 impl Kind {
@@ -247,6 +248,34 @@ const TEL_TYPES: &[&str] = &[
     "textphone",
 ];
 
+/// The formats of a picture (`PHOTO`, `LOGO`), named after their subtype.
+const IMAGE: MediaFormat = MediaFormat {
+    top: "image",
+    aliases: &[],
+    text: false,
+};
+
+/// The formats of a sound, vCard 2.1 naming three of its own.
+const SOUND: MediaFormat = MediaFormat {
+    top: "audio",
+    aliases: &[
+        ("WAVE", "audio/wav"),
+        ("PCM", "audio/L16"),
+        ("AIFF", "audio/aiff"),
+    ],
+    text: false,
+};
+
+/// The formats of a key, which may also be text (RFC 6350 section 6.8.1).
+const KEY: MediaFormat = MediaFormat {
+    top: "application",
+    aliases: &[
+        ("PGP", "application/pgp-keys"),
+        ("X509", "application/pkix-cert"),
+    ],
+    text: true,
+};
+
 /// The modeled vocabulary, everything outside it kept verbatim but unshown.
 ///
 /// Required fields lead, the remaining bare keys follow as one block (`note`
@@ -387,7 +416,21 @@ pub const FIELDS: &[Field] = &[
         name: "PHOTO",
         req: Req::No,
         hint: Some("a local image, or uri = \"https://\""),
-        kind: Kind::Media,
+        kind: Kind::Media(IMAGE),
+    },
+    Field {
+        key: "logo",
+        name: "LOGO",
+        req: Req::No,
+        hint: Some("a local image, or uri = \"https://\""),
+        kind: Kind::Media(IMAGE),
+    },
+    Field {
+        key: "sound",
+        name: "SOUND",
+        req: Req::No,
+        hint: Some("a local sound, or uri = \"https://\""),
+        kind: Kind::Media(SOUND),
     },
     Field {
         key: "url",
@@ -402,6 +445,13 @@ pub const FIELDS: &[Field] = &[
         req: Req::No,
         hint: Some("xmpp:jane@example.com"),
         kind: Kind::Typed { types: PLACE_TYPES },
+    },
+    Field {
+        key: "key",
+        name: "KEY",
+        req: Req::No,
+        hint: Some("a local key, or uri = \"https://\""),
+        kind: Kind::Media(KEY),
     },
 ];
 
@@ -498,7 +548,7 @@ impl Field {
                 }
             }
 
-            Kind::Media => {
+            Kind::Media(format) => {
                 if held.is_empty() {
                     lines.push(format!("[[{header}]]"), None);
                     lines.push("file = \"\"".to_owned(), hint);
@@ -509,7 +559,7 @@ impl Field {
                 for line in held {
                     lines.push(format!("[[{header}]]"), None);
 
-                    match Media::of(line) {
+                    match Media::of(line, format) {
                         Media::Embedded { mediatype, sha256 } => {
                             if let Some(mediatype) = mediatype {
                                 lines.push(
@@ -632,7 +682,7 @@ impl Field {
                 }
             }
 
-            Kind::Media => {
+            Kind::Media(format) => {
                 let version = template.version;
 
                 for (instance, table) in tables(item).into_iter().enumerate() {
@@ -646,9 +696,9 @@ impl Field {
 
                     if let Some(path) = written("file") {
                         let bytes = template.read(path)?;
-                        lines.push(inlined(self.name, original, &bytes, version));
+                        lines.push(inlined(self.name, original, &bytes, version, format));
                     } else if let Some(uri) = written("uri") {
-                        lines.push(referenced(self.name, original, uri, version));
+                        lines.push(referenced(self.name, original, uri, version, format));
                     } else if let Some(sha256) = table
                         .get("embedded")
                         .and_then(|item| item.as_table_like())
@@ -658,7 +708,7 @@ impl Field {
                     {
                         // NOTE: any instance, not only the one at this
                         // position, so reordering photos moves their lines.
-                        let held = originals.iter().find(|line| match Media::of(line) {
+                        let held = originals.iter().find(|line| match Media::of(line, format) {
                             Media::Embedded { sha256: held, .. } => {
                                 held.eq_ignore_ascii_case(sha256)
                             }

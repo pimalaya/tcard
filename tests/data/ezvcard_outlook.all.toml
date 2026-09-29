@@ -62,6 +62,12 @@ country = "United States of America"
 embedded.type = "image/jpeg"
 embedded.sha256 = "41533f06ce6eabc2cd74b81d82975cec8ca6b2f2aac48c7245454cb88c7b26de"
 
+[[logo]]
+file = ""					# a local image, or uri = "https://"
+
+[[sound]]
+file = ""					# a local sound, or uri = "https://"
+
 [[url]]
 type = "WORK"					# home, work
 value = "http://www.ibm.com"			# https://example.com
@@ -69,3 +75,6 @@ value = "http://www.ibm.com"			# https://example.com
 [[messaging]]
 type = ""					# home, work
 value = ""					# xmpp:jane@example.com
+
+[[key]]
+file = ""					# a local key, or uri = "https://"

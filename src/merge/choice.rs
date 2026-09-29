@@ -302,7 +302,7 @@ fn value_key(field: &Field) -> Option<&'static str> {
         Kind::Typed { .. } => Some("value"),
         // NOTE: a media value has no key either: the merged card holds one
         // side's bytes, so the other side's digest would not fold back.
-        Kind::Structured(_) | Kind::TypedStructured { .. } | Kind::Media => None,
+        Kind::Structured(_) | Kind::TypedStructured { .. } | Kind::Media(_) => None,
     }
 }
 

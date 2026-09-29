@@ -50,6 +50,12 @@ country = ""
 [[card.photo]]
 file = ""			# a local image, or uri = "https://"
 
+[[card.logo]]
+file = ""			# a local image, or uri = "https://"
+
+[[card.sound]]
+file = ""			# a local sound, or uri = "https://"
+
 [[card.url]]
 type = ""			# home, work
 value = ""			# https://example.com
@@ -57,6 +63,9 @@ value = ""			# https://example.com
 [[card.messaging]]
 type = ""			# home, work
 value = ""			# xmpp:jane@example.com
+
+[[card.key]]
+file = ""			# a local key, or uri = "https://"
 
 [[card]]
 full-name = "Alan Turing"		# required
@@ -103,6 +112,12 @@ country = ""
 [[card.photo]]
 file = ""				# a local image, or uri = "https://"
 
+[[card.logo]]
+file = ""				# a local image, or uri = "https://"
+
+[[card.sound]]
+file = ""				# a local sound, or uri = "https://"
+
 [[card.url]]
 type = ""				# home, work
 value = ""				# https://example.com
@@ -110,3 +125,6 @@ value = ""				# https://example.com
 [[card.messaging]]
 type = ""				# home, work
 value = ""				# xmpp:jane@example.com
+
+[[card.key]]
+file = ""				# a local key, or uri = "https://"
