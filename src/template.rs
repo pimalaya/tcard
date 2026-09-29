@@ -19,11 +19,13 @@
 
 pub(crate) mod datetime;
 mod line;
+mod media;
 pub(crate) mod model;
 pub(crate) mod patch;
 pub(crate) mod toml;
 
 use alloc::{
+    borrow::ToOwned,
     format,
     string::{String, ToString},
     vec,
@@ -44,12 +46,19 @@ use crate::{
     vcard::{Card, TcardCards},
 };
 
+/// Reads the bytes of a file a document names, or says why it cannot.
+pub type TcardFiles = fn(&str) -> Result<Vec<u8>, String>;
+
 /// A vCard stream and the TOML form it is edited through.
 pub struct TcardTemplate<'a> {
     /// The cards the form shows.
     pub cards: TcardCards<'a>,
     /// The vCard version the form is written for.
     pub version: VcardVersion,
+    /// Reads a file the document names, the crate doing no I/O of its own.
+    ///
+    /// Without one, a document naming a file is refused.
+    pub files: Option<TcardFiles>,
 }
 
 impl<'a> TcardTemplate<'a> {
@@ -61,7 +70,11 @@ impl<'a> TcardTemplate<'a> {
         let cards = TcardCards::parse(source)?;
         let version = cards.version().unwrap_or(version);
 
-        Ok(Self { cards, version })
+        Ok(Self {
+            cards,
+            version,
+            files: None,
+        })
     }
 
     /// Project the cards into a fillable TOML form.
@@ -96,19 +109,19 @@ impl<'a> TcardTemplate<'a> {
                 .map(tables)
                 .unwrap_or_default()
                 .into_iter()
-                .filter(|table| filled(*table))
+                .filter(|table| self.filled(*table))
                 .collect();
 
             cards.set_count(blocks.len());
 
             for (card, table) in cards.0.iter_mut().zip(blocks) {
-                apply_card(card, table);
+                self.apply_card(card, table)?;
             }
         } else {
-            cards.set_count(usize::from(filled(doc.as_table())));
+            cards.set_count(usize::from(self.filled(doc.as_table())));
 
             if let Some(card) = cards.0.first_mut() {
-                apply_card(card, doc.as_table());
+                self.apply_card(card, doc.as_table())?;
             }
         }
 
@@ -191,6 +204,45 @@ impl<'a> TcardTemplate<'a> {
 
         blocks
     }
+
+    /// Rewrite one card's fields from its TOML table, with a minimal diff.
+    ///
+    /// Each field is folded onto the lines the card already holds for it, so a
+    /// parameter or a component the document does not write survives.
+    fn apply_card(&self, card: &mut VcardCst<'_>, table: &dyn TableLike) -> TcardResult<()> {
+        for field in FIELDS {
+            let held = card.lines(field.name);
+            card.set_lines(field.name, &field.content_lines(table, &held, self)?);
+        }
+
+        Ok(())
+    }
+
+    /// Whether a card table carries any modelled value.
+    ///
+    /// A table that carries none is the empty example placeholder, not a card.
+    /// One that fails to fold carries something, the failure being reported
+    /// when it is applied.
+    fn filled(&self, table: &dyn TableLike) -> bool {
+        FIELDS.iter().any(|field| {
+            field
+                .content_lines(table, &[], self)
+                .map_or(true, |lines| !lines.is_empty())
+        })
+    }
+
+    /// The bytes of a file the document names, through [`Self::files`].
+    pub(crate) fn read(&self, path: &str) -> TcardResult<Vec<u8>> {
+        let read = self.files.ok_or_else(|| TcardError::ReadFile {
+            path: path.to_owned(),
+            message: "no file reader given".to_owned(),
+        })?;
+
+        read(path).map_err(|message| TcardError::ReadFile {
+            path: path.to_owned(),
+            message,
+        })
+    }
 }
 
 /// Write one card's blocks out, a blank line between them.
@@ -209,17 +261,6 @@ fn emit(out: &mut String, blocks: &[Lines]) {
     }
 }
 
-/// Rewrite one card's fields from its TOML table, with a minimal diff.
-///
-/// Each field is folded onto the lines the card already holds for it, so a
-/// parameter or a component the document does not write survives.
-fn apply_card(card: &mut VcardCst<'_>, table: &dyn TableLike) {
-    for field in FIELDS {
-        let held = card.lines(field.name);
-        card.set_lines(field.name, &field.content_lines(table, &held));
-    }
-}
-
 /// The content lines a card holds for a field.
 ///
 /// Empty when the card is absent, which is the example block.
@@ -227,22 +268,13 @@ fn held(card: Option<&VcardCst<'_>>, field: &Field) -> Vec<String> {
     card.map(|card| card.lines(field.name)).unwrap_or_default()
 }
 
-/// Whether a card table carries any modelled value.
-///
-/// A table that carries none is the empty example placeholder, not a card.
-fn filled(table: &dyn TableLike) -> bool {
-    FIELDS
-        .iter()
-        .any(|field| !field.content_lines(table, &[]).is_empty())
-}
-
 #[cfg(test)]
 mod tests {
-    use alloc::{string::String, vec::Vec};
+    use alloc::{format, string::String, vec::Vec};
 
     use vcard::version::VcardVersion;
 
-    use crate::template::TcardTemplate;
+    use crate::{error::TcardError, template::TcardTemplate};
 
     const SAMPLE: &str = "BEGIN:VCARD\r\n\
         VERSION:4.0\r\n\
@@ -317,7 +349,7 @@ mod tests {
         assert!(toml.contains("# F, M, O, N, U"));
         assert!(toml.contains("# geo:37.78,-122.40"));
         assert!(toml.contains("# home, work, cell"));
-        assert!(toml.contains("# file:// or https://"));
+        assert!(toml.contains("# a local image, or uri = \"https://\""));
         assert!(toml.contains("# email address"));
         assert!(!toml.contains("e.g."));
     }
@@ -608,5 +640,65 @@ mod tests {
         assert!(out.contains("BEGIN:VCARD\r\n"));
         assert!(out.contains("FN:New Person\r\n"));
         assert!(out.contains("END:VCARD\r\n"));
+    }
+
+    /// A vCard 3.0 card inlining a four-byte JPEG.
+    const INLINE: &str = "BEGIN:VCARD\r\nVERSION:3.0\r\nFN:A\r\n\
+        PHOTO;ENCODING=b;TYPE=JPEG:/9j/4A==\r\nEND:VCARD\r\n";
+
+    /// The digest of those four bytes.
+    const INLINE_SHA256: &str = "ba4f25bf16ba4be6bc7d3276fafeb67f9eb3c5df042bc3a405e1af15b921eed7";
+
+    /// A reader handing back the PNG signature for any path.
+    fn png(_: &str) -> Result<Vec<u8>, String> {
+        Ok(Vec::from(*b"\x89PNG"))
+    }
+
+    #[test]
+    fn an_inline_photo_is_its_digest() {
+        let toml = project(INLINE);
+
+        assert!(toml.contains("embedded.type = \"image/jpeg\""), "{toml}");
+        assert!(toml.contains("embedded.sha256 = \""), "{toml}");
+        assert!(!toml.contains("/9j/4A"), "{toml}");
+        assert_eq!(apply(INLINE, &toml), INLINE);
+    }
+
+    #[test]
+    fn a_file_replaces_an_inline_photo() {
+        let mut template = TcardTemplate::parse(INLINE, VcardVersion::V4_0).unwrap();
+        template.files = Some(png);
+
+        let embedded =
+            format!("embedded.type = \"image/jpeg\"\nembedded.sha256 = \"{INLINE_SHA256}\"");
+        let toml = template.project().replace(&embedded, "file = \"~/me.png\"");
+        let out = template.apply(&toml).unwrap();
+
+        assert!(
+            out.contains("PHOTO;ENCODING=b;TYPE=PNG:iVBORw==\r\n"),
+            "{out}"
+        );
+        assert!(project(&out).contains("embedded.type = \"image/png\""));
+    }
+
+    #[test]
+    fn an_unknown_digest_is_refused() {
+        let toml = project(INLINE).replace(INLINE_SHA256, &"0".repeat(64));
+        let err = TcardTemplate::parse(INLINE, VcardVersion::V4_0)
+            .unwrap()
+            .apply(&toml)
+            .unwrap_err();
+
+        assert!(matches!(err, TcardError::UnknownEmbedded(_)), "{err}");
+    }
+
+    #[test]
+    fn a_file_without_a_reader_is_refused() {
+        let err = TcardTemplate::parse("", VcardVersion::V4_0)
+            .unwrap()
+            .apply("full-name = \"A\"\n[[photo]]\nfile = \"me.png\"\n")
+            .unwrap_err();
+
+        assert!(matches!(err, TcardError::ReadFile { .. }), "{err}");
     }
 }

@@ -50,7 +50,7 @@ code = "12345"
 country = "United States of America"
 
 [[photo]]
-value = ""					# file:// or https://
+file = ""					# a local image, or uri = "https://"
 
 [[url]]
 type = ""					# home, work

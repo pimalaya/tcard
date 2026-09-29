@@ -58,6 +58,7 @@ This repository ships two interfaces: a Rust library projecting a card to TOML a
 - **Discoverable** properties: the blank form lists every property tCard knows, with empty values, so filling one needs no reference.
 - **Minimal, lossless diffs**: only the lines you changed are re-rendered, and every other line keeps the card's own bytes.
 - **Verbatim passthrough**: a property tCard does not list, a parameter the form hides and a group prefix all survive an edit untouched.
+- **Photos as digests**: an inline photo shows as its media type and SHA-256, never as base64, and `file = "~/me.jpg"` inlines a new one.
 - **Three-way merge**: `merge` reconciles two divergent cards against their base, writing what it cannot decide as duplicate TOML keys.
 - **Interactive editing** in `$EDITOR`, or in the command `--editor` names, behind the opt-in `cli` cargo feature.
 

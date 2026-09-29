@@ -14,11 +14,16 @@ use alloc::{
 use toml_edit::TableLike;
 use vcard::version::VcardVersion;
 
-use crate::template::{
-    datetime::{date_rhs, toml_date_value},
-    line::{Line, Lines},
-    patch::{Content, escape, items, named, unescape},
-    toml::{read_components, read_type, tables, toml_array, toml_str},
+use crate::{
+    error::{TcardError, TcardResult},
+    template::{
+        TcardTemplate,
+        datetime::{date_rhs, toml_date_value},
+        line::{Line, Lines},
+        media::{Media, inlined, referenced},
+        patch::{Content, escape, items, named, unescape},
+        toml::{read_components, read_type, tables, toml_array, toml_str},
+    },
 };
 
 /// A named component of a structured value.
@@ -75,7 +80,7 @@ pub enum Kind {
     Structured(&'static [Component]),
     /// Repeatable property with an optional `TYPE` and a single value.
     ///
-    /// `EMAIL`, `TEL`, `URL` and `PHOTO` take this shape.
+    /// `EMAIL`, `TEL`, `URL` and `IMPP` take this shape.
     Typed {
         /// The `TYPE` values the form lists as accepted.
         types: &'static [&'static str],
@@ -89,6 +94,11 @@ pub enum Kind {
         /// The named components, in the order the vCard writes them.
         components: &'static [Component],
     },
+    /// Repeatable picture, as bytes the card carries or a reference (`PHOTO`).
+    ///
+    /// Each instance is one of `embedded` (the digest of inline bytes), `file`
+    /// (a path to inline) or `uri`.
+    Media,
 }
 
 impl Kind {
@@ -376,8 +386,8 @@ pub const FIELDS: &[Field] = &[
         key: "photo",
         name: "PHOTO",
         req: Req::No,
-        hint: Some("file:// or https://"),
-        kind: Kind::Typed { types: &[] },
+        hint: Some("a local image, or uri = \"https://\""),
+        kind: Kind::Media,
     },
     Field {
         key: "url",
@@ -453,10 +463,10 @@ impl Field {
                 lines.extend(component_lines(components, &values, version));
             }
 
-            Kind::Typed { .. } => {
+            Kind::Typed { types } => {
                 if held.is_empty() {
                     lines.push(format!("[[{header}]]"), None);
-                    lines.extend(self.type_lines(""));
+                    lines.extend(type_line(types, ""));
                     lines.push("value = \"\"".to_owned(), hint);
                 }
 
@@ -464,7 +474,7 @@ impl Field {
                     let line = Content(line);
 
                     lines.push(format!("[[{header}]]"), None);
-                    lines.extend(self.type_lines(&line.types().join(",")));
+                    lines.extend(type_line(types, &line.types().join(",")));
                     lines.push(
                         format!("value = {}", toml_str(&line.text())),
                         self.hint.map(str::to_owned),
@@ -472,10 +482,10 @@ impl Field {
                 }
             }
 
-            Kind::TypedStructured { components, .. } => {
+            Kind::TypedStructured { types, components } => {
                 if held.is_empty() {
                     lines.push(format!("[[{header}]]"), None);
-                    lines.extend(self.type_lines(""));
+                    lines.extend(type_line(types, ""));
                     lines.extend(component_lines(components, &[], version));
                 }
 
@@ -483,8 +493,35 @@ impl Field {
                     let line = Content(line);
 
                     lines.push(format!("[[{header}]]"), None);
-                    lines.extend(self.type_lines(&line.types().join(",")));
+                    lines.extend(type_line(types, &line.types().join(",")));
                     lines.extend(component_lines(components, &line.items(';'), version));
+                }
+            }
+
+            Kind::Media => {
+                if held.is_empty() {
+                    lines.push(format!("[[{header}]]"), None);
+                    lines.push("file = \"\"".to_owned(), hint);
+                }
+
+                // NOTE: no hint on these lines, a digest or a long URI would
+                // push the whole card's comment column out with it.
+                for line in held {
+                    lines.push(format!("[[{header}]]"), None);
+
+                    match Media::of(line) {
+                        Media::Embedded { mediatype, sha256 } => {
+                            if let Some(mediatype) = mediatype {
+                                lines.push(
+                                    format!("embedded.type = {}", toml_str(&mediatype)),
+                                    None,
+                                );
+                            }
+
+                            lines.push(format!("embedded.sha256 = {}", toml_str(&sha256)), None);
+                        }
+                        Media::Uri(uri) => lines.push(format!("uri = {}", toml_str(uri)), None),
+                    }
                 }
             }
         }
@@ -498,9 +535,17 @@ impl Field {
     /// it. `originals` are the card's own lines in projection order, patched
     /// not rebuilt so what the document does not write survives. An empty item
     /// leaves a `,` list, saying nothing, and holds its slot in a `;` list.
-    pub fn content_lines(&self, source: &dyn TableLike, originals: &[String]) -> Vec<String> {
+    ///
+    /// `template` gives the version a media file is inlined at and the reader
+    /// it is read with.
+    pub fn content_lines(
+        &self,
+        source: &dyn TableLike,
+        originals: &[String],
+        template: &TcardTemplate<'_>,
+    ) -> TcardResult<Vec<String>> {
         let Some(item) = source.get(self.key) else {
-            return Vec::new();
+            return Ok(Vec::new());
         };
 
         let mut lines = Vec::new();
@@ -558,7 +603,7 @@ impl Field {
                 }
             }
 
-            Kind::Typed { types } => {
+            Kind::Typed { .. } => {
                 for (instance, table) in tables(item).into_iter().enumerate() {
                     let Some(value) = table
                         .get("value")
@@ -569,11 +614,11 @@ impl Field {
                     };
 
                     let original = originals.get(instance);
-                    lines.push(self.line(original, shown(types, table), &escape(value)));
+                    lines.push(self.line(original, Some(read_type(table)), &escape(value)));
                 }
             }
 
-            Kind::TypedStructured { types, components } => {
+            Kind::TypedStructured { components, .. } => {
                 for (instance, table) in tables(item).into_iter().enumerate() {
                     let original = originals.get(instance);
                     let parts = read_components(table, components, original);
@@ -583,34 +628,53 @@ impl Field {
                     }
 
                     let value = join_components(&parts);
-                    lines.push(self.line(original, shown(types, table), &value));
+                    lines.push(self.line(original, Some(read_type(table)), &value));
+                }
+            }
+
+            Kind::Media => {
+                let version = template.version;
+
+                for (instance, table) in tables(item).into_iter().enumerate() {
+                    let original = originals.get(instance);
+                    let written = |key| {
+                        table
+                            .get(key)
+                            .and_then(|item| item.as_str())
+                            .filter(|value| !value.is_empty())
+                    };
+
+                    if let Some(path) = written("file") {
+                        let bytes = template.read(path)?;
+                        lines.push(inlined(self.name, original, &bytes, version));
+                    } else if let Some(uri) = written("uri") {
+                        lines.push(referenced(self.name, original, uri, version));
+                    } else if let Some(sha256) = table
+                        .get("embedded")
+                        .and_then(|item| item.as_table_like())
+                        .and_then(|embedded| embedded.get("sha256"))
+                        .and_then(|item| item.as_str())
+                        .filter(|sha256| !sha256.is_empty())
+                    {
+                        // NOTE: any instance, not only the one at this
+                        // position, so reordering photos moves their lines.
+                        let held = originals.iter().find(|line| match Media::of(line) {
+                            Media::Embedded { sha256: held, .. } => {
+                                held.eq_ignore_ascii_case(sha256)
+                            }
+                            Media::Uri(_) => false,
+                        });
+
+                        match held {
+                            Some(line) => lines.push(line.clone()),
+                            None => return Err(TcardError::UnknownEmbedded(sha256.to_owned())),
+                        }
+                    }
                 }
             }
         }
 
-        lines
-    }
-
-    /// The `type` line of one instance, with its accepted-types hint.
-    ///
-    /// Empty for a property the vocabulary lists no common type set for
-    /// (`PHOTO`), which therefore shows no such line at all.
-    fn type_lines(&self, value: &str) -> Lines {
-        let mut lines = Lines::default();
-
-        let accepted = match self.kind {
-            Kind::Typed { types } | Kind::TypedStructured { types, .. } => types,
-            _ => &[],
-        };
-
-        if !accepted.is_empty() {
-            lines.push(
-                format!("type = {}", toml_str(value)),
-                Some(accepted.join(", ")),
-            );
-        }
-
-        lines
+        Ok(lines)
     }
 
     /// One content line for this field.
@@ -727,12 +791,14 @@ fn section_header(prefix: Option<&str>, key: &str) -> String {
     }
 }
 
-/// The types a TOML table writes.
-///
-/// `None` for a property whose projection lists no type at all (`PHOTO`),
-/// whose own ones are therefore not the document's to clear.
-fn shown<'t>(types: &[&str], table: &'t dyn TableLike) -> Option<&'t str> {
-    (!types.is_empty()).then(|| read_type(table))
+/// The `type` line of one instance, with its accepted-types hint.
+fn type_line(types: &[&str], value: &str) -> Lines {
+    let mut lines = Lines::default();
+    lines.push(
+        format!("type = {}", toml_str(value)),
+        Some(types.join(", ")),
+    );
+    lines
 }
 
 /// Render named components, filled or empty, in order.

@@ -85,7 +85,13 @@ impl Editor<'_> {
                 Err(err) => err,
             };
 
-            let recoverable = matches!(err, TcardError::ParseToml(_) | TcardError::Undecided(_));
+            let recoverable = matches!(
+                err,
+                TcardError::ParseToml(_)
+                    | TcardError::Undecided(_)
+                    | TcardError::UnknownEmbedded(_)
+                    | TcardError::ReadFile { .. }
+            );
 
             if !recoverable || printer.is_json() || !prompt::bool(reprompt(&err), true)? {
                 return Err(keep(&path, err.into()));

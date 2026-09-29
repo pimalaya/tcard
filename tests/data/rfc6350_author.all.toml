@@ -48,7 +48,7 @@ code = "G1V 2M2"
 country = "Canada"
 
 [[photo]]
-value = ""				# file:// or https://
+file = ""				# a local image, or uri = "https://"
 
 [[url]]
 type = "home"				# home, work

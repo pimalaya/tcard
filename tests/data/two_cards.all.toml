@@ -48,7 +48,7 @@ code = ""
 country = ""
 
 [[card.photo]]
-value = ""			# file:// or https://
+file = ""			# a local image, or uri = "https://"
 
 [[card.url]]
 type = ""			# home, work
@@ -101,7 +101,7 @@ code = ""
 country = ""
 
 [[card.photo]]
-value = ""				# file:// or https://
+file = ""				# a local image, or uri = "https://"
 
 [[card.url]]
 type = ""				# home, work

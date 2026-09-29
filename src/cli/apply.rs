@@ -18,7 +18,7 @@ use log::info;
 use pimalaya_cli::{clap::parsers::path_parser, printer::Printer};
 
 use crate::{
-    cli::args::{Output, SourceArg, VersionArg},
+    cli::args::{Output, SourceArg, VersionArg, read_file},
     template::TcardTemplate,
 };
 
@@ -59,7 +59,9 @@ impl ApplyCommand {
         let edited = self.read()?;
         let version = self.version.version.into();
         let source = self.source.load(version)?;
-        let vcard = TcardTemplate::parse(&source, version)?.apply(&edited)?;
+        let mut template = TcardTemplate::parse(&source, version)?;
+        template.files = Some(read_file);
+        let vcard = template.apply(&edited)?;
 
         let target = self.output.or_else(|| self.source.file_path());
 

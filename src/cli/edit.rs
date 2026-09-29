@@ -11,7 +11,7 @@ use pimalaya_cli::{clap::parsers::path_parser, printer::Printer};
 
 use crate::{
     cli::{
-        args::{EditorArg, Output, SourceArg, VersionArg},
+        args::{EditorArg, Output, SourceArg, VersionArg, read_file},
         editor::Editor,
     },
     template::TcardTemplate,
@@ -50,7 +50,8 @@ impl EditCommand {
     pub fn execute(self, printer: &mut impl Printer) -> Result<()> {
         let version = self.version.version.into();
         let source = self.source.load(version)?;
-        let template = TcardTemplate::parse(&source, version)?;
+        let mut template = TcardTemplate::parse(&source, version)?;
+        template.files = Some(read_file);
 
         let scaffold = template.project();
         let editor = Editor {

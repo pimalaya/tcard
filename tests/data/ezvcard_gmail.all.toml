@@ -56,7 +56,7 @@ code = ""
 country = ""
 
 [[photo]]
-value = ""												# file:// or https://
+file = ""												# a local image, or uri = "https://"
 
 [[url]]
 type = "WORK"												# home, work

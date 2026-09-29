@@ -40,7 +40,7 @@ use crate::{
     error::{TcardError, TcardResult},
     merge::document::Document,
     template::{
-        TcardTemplate,
+        TcardFiles, TcardTemplate,
         model::{FIELDS, Field},
     },
     vcard::TcardCards,
@@ -78,6 +78,7 @@ impl TcardMerge<'_> {
         let template = TcardTemplate {
             cards: TcardCards(vec![report.merged.clone()]),
             version,
+            files: None,
         };
 
         let mut document = Document::new(&template.project());
@@ -86,6 +87,7 @@ impl TcardMerge<'_> {
         Ok(TcardMerged {
             vcard: report.merged.to_string(),
             toml: document.into_string(),
+            files: None,
         })
     }
 }
@@ -98,6 +100,8 @@ pub struct TcardMerged {
     pub vcard: String,
     /// The projection of that card, each undecided collision written twice.
     pub toml: String,
+    /// Reads a file the document names, as [`TcardTemplate::files`] does.
+    pub files: Option<TcardFiles>,
 }
 
 impl TcardMerged {
@@ -108,7 +112,8 @@ impl TcardMerged {
     /// the reader is told what to resolve instead of being shown a syntax
     /// error.
     pub fn apply(&self, edited: &str) -> TcardResult<String> {
-        let template = TcardTemplate::parse(&self.vcard, VcardVersion::V4_0)?;
+        let mut template = TcardTemplate::parse(&self.vcard, VcardVersion::V4_0)?;
+        template.files = self.files;
 
         template.apply(edited).map_err(|err| undecided(err, edited))
     }

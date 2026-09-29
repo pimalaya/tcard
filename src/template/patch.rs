@@ -97,6 +97,41 @@ impl<'a> Content<'a> {
 
         out
     }
+
+    /// The value of the first parameter of that name, unquoted.
+    pub fn param(&self, name: &str) -> Option<&'a str> {
+        split(self.prefix(), ';')
+            .into_iter()
+            .skip(1)
+            .filter_map(|param| param.split_once('='))
+            .find(|(key, _)| key.eq_ignore_ascii_case(name))
+            .map(|(_, value)| unquote(value))
+    }
+
+    /// This line's prefix without the parameters of those names.
+    ///
+    /// A bare vCard 2.1 parameter (`;JPEG`) is a type, so it goes with
+    /// `TYPE`.
+    pub fn without(&self, names: &[&str]) -> String {
+        let removed = |name: &str| {
+            names
+                .iter()
+                .any(|removed| removed.eq_ignore_ascii_case(name))
+        };
+        let params = split(self.prefix(), ';');
+        let mut out = params.first().copied().unwrap_or_default().to_owned();
+
+        for param in params.iter().skip(1) {
+            let name = param.split_once('=').map_or("TYPE", |(name, _)| name);
+
+            if !removed(name) {
+                out.push(';');
+                out.push_str(param);
+            }
+        }
+
+        out
+    }
 }
 
 /// The prefix a line the card does not hold yet carries.
@@ -298,6 +333,14 @@ mod tests {
         );
         assert_eq!(line.rewritten(Some("")), "EMAIL;PREF=1;PID=1.1");
         assert_eq!(line.rewritten(None), "EMAIL;PREF=1;TYPE=work;PID=1.1");
+    }
+
+    #[test]
+    fn an_encoding_is_stripped_with_its_bare_type() {
+        let line = Content("PHOTO;PREF=1;ENCODING=b;JPEG:x");
+
+        assert_eq!(line.param("encoding"), Some("b"));
+        assert_eq!(line.without(&["ENCODING", "TYPE"]), "PHOTO;PREF=1");
     }
 
     #[test]

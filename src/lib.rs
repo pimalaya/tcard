@@ -57,10 +57,15 @@
 //! `address` can read well without `ADR` moving, and carries the requirement,
 //! the inline hint and the kind that drives both directions.
 //!
-//! A kind is one of five. A scalar is one value, a list joins several on a
+//! A kind is one of six. A scalar is one value, a list joins several on a
 //! separator, a structured value expands into named components instead of
 //! bare semicolons, a typed property repeats as sections carrying an optional
-//! `TYPE`, and a typed structured one is both.
+//! `TYPE`, a typed structured one is both, and a media one (`PHOTO`) is bytes
+//! the card carries, shown as their SHA-256, or a reference.
+//!
+//! A media value names a local file to inline. The crate reads none itself:
+//! [`template::TcardTemplate::files`] is the reader its caller hands it, the
+//! CLI's being the filesystem.
 //!
 //! A structured component can be deprecated, which RFC 6350 does to `ADR`'s
 //! post office box and extended address: hidden from a vCard 4.0 scaffold,
@@ -120,8 +125,9 @@
 //!
 //! The projection's own layer sits under it, private to the crate: model holds
 //! the static vocabulary, patch the content-line grammar a fold-back reads and
-//! writes through, toml the TOML side of the same, datetime the dates and line
-//! the blocks and the column their hints share.
+//! writes through, toml the TOML side of the same, datetime the dates, media
+//! the inline bytes and their digests, and line the blocks and the column
+//! their hints share.
 //!
 //! The merge splits the same way: choice turns a collision into the key it
 //! contests, document writes that key into the projection, and note says what

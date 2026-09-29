@@ -300,7 +300,9 @@ fn value_key(field: &Field) -> Option<&'static str> {
     match field.kind {
         Kind::Scalar | Kind::Date | Kind::List { .. } => Some(field.key),
         Kind::Typed { .. } => Some("value"),
-        Kind::Structured(_) | Kind::TypedStructured { .. } => None,
+        // NOTE: a media value has no key either: the merged card holds one
+        // side's bytes, so the other side's digest would not fold back.
+        Kind::Structured(_) | Kind::TypedStructured { .. } | Kind::Media => None,
     }
 }
 

@@ -15,7 +15,7 @@ use pimalaya_cli::{clap::parsers::path_parser, printer::Printer};
 
 use crate::{
     cli::{
-        args::{EditorArg, Output},
+        args::{EditorArg, Output, read_file},
         editor::Editor,
     },
     merge::TcardMerge,
@@ -54,12 +54,13 @@ impl MergeCommand {
         let local = read(&self.local)?;
         let remote = read(&self.remote)?;
 
-        let merged = TcardMerge {
+        let mut merged = TcardMerge {
             base: &base,
             local: &local,
             remote: &remote,
         }
         .project()?;
+        merged.files = Some(read_file);
 
         let editor = Editor {
             document: &merged.toml,

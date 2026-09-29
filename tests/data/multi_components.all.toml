@@ -45,7 +45,7 @@ code = "62701"
 country = "Congo, The Democratic Republic of the"
 
 [[photo]]
-value = ""				# file:// or https://
+file = ""				# a local image, or uri = "https://"
 
 [[url]]
 type = ""				# home, work

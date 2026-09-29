@@ -12,6 +12,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
   `template` went one way and only `edit` came back, so a form edited by anything other than tCard's own editor, a script, a filter, a graphical app, could not be folded back at all. `tcard apply form.toml contact.vcf` closes the round trip, and `-` reads the document from stdin. A document that does not parse, or that leaves a merge collision undecided, is an error here rather than a question. It writes the source file back in place, as `edit` does, `--output` sending the result elsewhere.
 
+### Changed
+
+- A photo is now one of `embedded`, `file` or `uri`, replacing `value` ([#1]).
+
+  An inline photo shows as `embedded.type` and `embedded.sha256`, the digest `sha256sum` prints, instead of its base64, and comes back byte for byte when left alone. `file = "~/me.jpg"` inlines a local image at the card's version, as a `data:` URI in 4.0 or base64 in 3.0 and 2.1, so replacing a photo is swapping its `embedded` for a `file`. A reference is `uri`, kept as written. An unknown digest and an unreadable file are refused.
+
+  A photo both sides of a merge changed is settled by the merge and noted in the header, since the merged card only holds one side's bytes.
+
 ## [0.2.0] - 2026-09-01
 
 ### Added
@@ -83,3 +91,5 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 [unreleased]: https://github.com/pimalaya/tcard/compare/v0.2.0..HEAD
 [0.2.0]: https://github.com/pimalaya/tcard/compare/v0.1.0..v0.2.0
 [0.1.0]: https://github.com/pimalaya/tcard/compare/root..v0.1.0
+
+[#1]: https://github.com/pimalaya/tcard/issues/1

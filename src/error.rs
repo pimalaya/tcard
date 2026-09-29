@@ -24,6 +24,16 @@ pub enum TcardError {
     ///
     /// It cannot be applied until one of the two lines is gone.
     Undecided(String),
+    /// The document names an embedded object by a digest the card does not
+    /// hold.
+    UnknownEmbedded(String),
+    /// A file the document names cannot be read.
+    ReadFile {
+        /// The path as the document wrote it.
+        path: String,
+        /// Why it could not be read.
+        message: String,
+    },
 }
 
 impl fmt::Display for TcardError {
@@ -40,6 +50,12 @@ impl fmt::Display for TcardError {
             }
             Self::Undecided(key) => {
                 write!(f, "Field {key} left undecided, keep one of its lines")
+            }
+            Self::UnknownEmbedded(sha256) => {
+                write!(f, "Embedded object {sha256} is not in the card")
+            }
+            Self::ReadFile { path, message } => {
+                write!(f, "Cannot read file {path}: {message}")
             }
         }
     }
