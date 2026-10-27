@@ -51,3 +51,6 @@ sha2 = { version = "0.11", default-features = false }
 toml_edit = "0.25"
 uuid = { version = "1", features = ["v4"], optional = true }
 vcard-rs = { version = "0.5", default-features = false, features = ["parser"] }
+
+[patch.crates-io]
+pimalaya-cli = { git = "https://github.com/pimalaya/cli", rev = "55b66933950f02541892407667e5e0b254245871" }

@@ -25,6 +25,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
   A photo both sides of a merge changed is settled by the merge and noted in the header, since the merged card only holds one side's bytes.
 
 - `edit` and `merge` now offer to re-open the editor on any document that does not fold back, rather than on broken TOML and undecided collisions only.
+- Changed piped `--json` output to print one value per line (pimalaya-cli `55b6693`).
 
 ## [0.2.0] - 2026-09-01
 
