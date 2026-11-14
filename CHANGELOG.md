@@ -16,8 +16,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
   A vCard 2.1 or 3.0 `TYPE` is read as the media type it names (`WAVE` is `audio/wav`, `PGP` is `application/pgp-keys`), and a key written as text, an armoured PGP block among them, is shown as the digest of that text.
 
+- Added `json-schema`, which writes the JSON Schema of what each command prints, the failure object included.
+- Added a stable `code` to the failure object: `card-unreadable`, `template-unreadable`, `collision-undecided`, `embedded-unknown`, `file-unreadable`, `editor-missing`, `editor-failed`, and `usage-invalid` for a command line the parser refuses.
+
 ### Changed
 
+- **BREAKING**: Changed `--json` output to print the document as `{"contents": ...}`, or as the receipt `{"path": ..., "size": ...}` when it was written to a file, rather than the raw TOML or vCard.
+
+  In text, a document still prints as itself, and one written to a file prints nothing.
+
+- Changed a command line the parser refuses to print the failure object under `--json`, still exiting 2.
+- Changed an edited vCard 3.0 or 4.0 line longer than 75 octets to be folded, where it went out on one line (vcard-rs 0.6).
+- Changed the help to print as written, no longer wrapped to the terminal width.
+- Changed the minimum supported Rust version to 1.89.
 - A photo is now one of `embedded`, `file` or `uri`, replacing `value` ([#1]).
 
   An inline photo shows as `embedded.type` and `embedded.sha256`, the digest `sha256sum` prints, instead of its base64, and comes back byte for byte when left alone. `file = "~/me.jpg"` inlines a local image at the card's version, as a `data:` URI in 4.0 or base64 in 3.0 and 2.1, so replacing a photo is swapping its `embedded` for a `file`. A reference is `uri`, kept as written. An unknown digest and an unreadable file are refused.
@@ -25,7 +36,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
   A photo both sides of a merge changed is settled by the merge and noted in the header, since the merged card only holds one side's bytes.
 
 - `edit` and `merge` now offer to re-open the editor on any document that does not fold back, rather than on broken TOML and undecided collisions only.
-- Changed piped `--json` output to print one value per line (pimalaya-cli `55b6693`).
+- Changed piped `--json` output to print one value per line.
 
 ## [0.2.0] - 2026-09-01
 

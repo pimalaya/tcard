@@ -11,7 +11,10 @@ use clap::Parser;
 use pimalaya_cli::{clap::parsers::path_parser, printer::Printer};
 
 use crate::{
-    cli::args::{Output, SourceArg, VersionArg},
+    cli::{
+        args::{SourceArg, VersionArg},
+        output::DocumentOutput,
+    },
     template::TcardTemplate,
 };
 
@@ -31,11 +34,11 @@ pub struct TemplateCommand {
 
 impl TemplateCommand {
     /// Project the source card and write the TOML form out.
-    pub fn execute(self, _printer: &mut impl Printer) -> Result<()> {
+    pub fn execute(self, printer: &mut impl Printer) -> Result<()> {
         let version = self.version.version.into();
         let source = self.source.load(version)?;
         let toml = TcardTemplate::parse(&source, version)?.project();
 
-        Output(self.output.as_deref()).write(toml.as_bytes())
+        printer.out(DocumentOutput::write(self.output.as_deref(), toml)?)
     }
 }

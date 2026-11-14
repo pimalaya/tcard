@@ -358,11 +358,7 @@ fn a_one_letter_gender_identity_keeps_its_case() {
 }
 
 /// A folded line the document leaves alone keeps its folds, and one the
-/// document moves goes back out unfolded.
-///
-/// The wire layout is a list of offsets into the line's own bytes, so an edit
-/// that changes the line's length invalidates it, and RFC 6350 section 3.2
-/// recommends folding rather than requiring it.
+/// document moves goes out on one line while it fits in 75 octets.
 #[test]
 fn a_fold_survives_a_line_the_document_leaves_alone() {
     let folded = "NOTE:a note long enough that the exporter which wrote it folded the\r\n  line";
@@ -378,5 +374,22 @@ fn a_fold_survives_a_line_the_document_leaves_alone() {
             "NOTE:the note long enough that the exporter which wrote it folded the line\r\n"
         ),
         "{out}",
+    );
+}
+
+/// An edited line longer than 75 octets is folded, as RFC 6350 section 3.2
+/// recommends.
+#[test]
+fn an_edited_long_line_is_folded() {
+    let src = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:Jane\r\nNOTE:short\r\nEND:VCARD\r\n";
+    let note = "a note long enough to cross the seventy-five octets a content line holds";
+    let edited = project(src).replace("\"short\"", &format!("\"{note}\""));
+    let out = template(src).apply(&edited).unwrap();
+
+    assert!(out.lines().all(|line| line.len() <= 75), "{out}");
+    assert!(
+        out.replace("\r\n ", "")
+            .contains(&format!("NOTE:{note}\r\n")),
+        "{out}"
     );
 }

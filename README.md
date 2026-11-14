@@ -146,6 +146,8 @@ tcard merge base.vcf local.vcf remote.vcf --output merged.vcf
 
 The editor is the one `--editor` names, then `$VISUAL`, then `$EDITOR`, and nothing after those: tCard picks none of its own, and says so when neither variable is set. It reads no configuration file, so set them in your shell. The command is spawned on the path of a temporary TOML file it edits in place, so it must block until the edit is done: use `code --wait`, not `code`.
 
+In text, a document goes to stdout as itself, and one written to a file prints nothing. With `--json`, a command prints one object: `{"contents": ...}` for a document printed whole, `{"path": ..., "size": ...}` for one written to a file, or the failure object, whose `code` names what failed (`card-unreadable`, `template-unreadable`, `collision-undecided`, `embedded-unknown`, `file-unreadable`, `editor-missing`, `editor-failed`, `usage-invalid`). `tcard json-schema -d <DIR>` writes their JSON Schemas. A failure exits 1, a command line the parser refuses exits 2.
+
 Logs go to stderr, so they can be redirected to a file while the command output stays on stdout:
 
 ```sh

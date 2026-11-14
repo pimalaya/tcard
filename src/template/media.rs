@@ -11,24 +11,11 @@
 use alloc::{borrow::ToOwned, format, string::String, vec::Vec};
 use core::fmt::Write;
 
-use base64::{
-    Engine,
-    alphabet::STANDARD,
-    engine::{
-        DecodePaddingMode,
-        general_purpose::{GeneralPurpose, GeneralPurposeConfig},
-    },
-};
+use base64_codec::codec::Base64Codec;
 use sha2::{Digest, Sha256};
 use vcard::version::VcardVersion;
 
 use crate::template::patch::{Content, unescape};
-
-/// Base64 as vCard writes it: padded on the way out, either way on the way in.
-const BASE64: GeneralPurpose = GeneralPurpose::new(
-    &STANDARD,
-    GeneralPurposeConfig::new().with_decode_padding_mode(DecodePaddingMode::Indifferent),
-);
 
 /// The parameters describing how a value is encoded rather than what it is.
 ///
@@ -131,7 +118,9 @@ pub fn inlined(
     format: &MediaFormat,
 ) -> String {
     let mediatype = sniff(bytes);
-    let data = BASE64.encode(bytes);
+    let mut data = Vec::new();
+    Base64Codec::default().encode_vec(bytes, &mut data);
+    let data = String::from_utf8(data).unwrap_or_default();
     let mut prefix = stripped(name, original, version);
 
     match version {
@@ -255,13 +244,12 @@ fn has_scheme(value: &str) -> bool {
         && chars.all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '+' | '-' | '.'))
 }
 
-/// Base64 decoded, whatever whitespace a vCard 2.1 export left inside it.
+/// Base64 decoded, the blanks and line breaks a vCard 2.1 export left inside
+/// it skipped, `None` when it holds a stray byte.
 fn decode(data: &str) -> Option<Vec<u8>> {
-    let data: String = data
-        .chars()
-        .filter(|ch| !ch.is_ascii_whitespace())
-        .collect();
-    BASE64.decode(data).ok()
+    let mut bytes = Vec::new();
+    let clean = Base64Codec::default().decode_vec(data.as_bytes(), &mut bytes);
+    clean.then_some(bytes)
 }
 
 /// A `data:` URI's payload written without base64, its `%XX` escapes undone.

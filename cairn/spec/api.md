@@ -73,3 +73,11 @@ The test is dispatch, not the shape of the declaration: the same keyword covers 
 - GIVEN a trait implemented once, for a type another crate owns
 - WHEN the public surface is read
 - THEN the trait is not in it, and the methods it carries are reached through the types that are
+
+### Requirement: Base64 runs on the family codec
+Media bytes SHALL be encoded and decoded through base64-codec, the codec every Pimalaya crate shares, and the binary SHALL install the detected CPU token first thing in `main`. Decoding SHALL refuse a value holding a stray byte, so such a value reads as the reference it then is, as it did under the strict decoder before.
+
+#### Scenario: A photo split by a vCard 2.1 export
+- GIVEN an inline photo whose base64 holds spaces and line breaks
+- WHEN the card is projected
+- THEN the form shows the digest of the decoded bytes

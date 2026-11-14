@@ -12,7 +12,11 @@
 //! buffer, so an edit is never lost, whether it is broken TOML or a collision
 //! still to decide.
 
-use alloc::{format, string::String, vec::Vec};
+use alloc::{
+    format,
+    string::{String, ToString},
+    vec::Vec,
+};
 
 use std::{
     env::{self, temp_dir},
@@ -21,12 +25,15 @@ use std::{
     process::{Command, ExitStatus, Stdio},
 };
 
-use anyhow::{Context, Error, Result, anyhow, bail};
+use anyhow::{Context, Error, Result, bail};
 use log::{debug, info};
-use pimalaya_cli::{printer::Printer, prompt};
+use pimalaya_cli::{error::CodedError, printer::Printer, prompt};
 use uuid::Uuid;
 
-use crate::error::{TcardError, TcardResult};
+use crate::{
+    cli::error::ErrorCode,
+    error::{TcardError, TcardResult},
+};
 
 /// The editor round trip over one TOML document.
 pub struct Editor<'a> {
@@ -71,7 +78,11 @@ impl Editor<'_> {
             };
 
             if !status.success() {
-                return Err(keep(&path, anyhow!("Editor exited with {status}")));
+                let err = CodedError::new(
+                    ErrorCode::EditorFailed,
+                    format!("Editor exited with {status}"),
+                );
+                return Err(keep(&path, err.into()));
             }
 
             let edited =
@@ -114,7 +125,8 @@ impl Editor<'_> {
             }
         }
 
-        bail!("No editor found; set $VISUAL or $EDITOR, or pass --editor <COMMAND>")
+        let message = "No editor found; set $VISUAL or $EDITOR, or pass --editor <COMMAND>";
+        Err(CodedError::new(ErrorCode::EditorMissing, message).into())
     }
 }
 
@@ -142,6 +154,7 @@ fn spawn(command: &str, path: &PathBuf) -> Result<ExitStatus> {
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
         .status()
+        .map_err(|err| Error::new(CodedError::new(ErrorCode::EditorFailed, err.to_string())))
         .with_context(|| format!("Cannot spawn editor {program}"))
 }
 

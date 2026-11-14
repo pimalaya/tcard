@@ -1,7 +1,7 @@
 //! # Shared arguments
 //!
-//! The source a verb reads its card from, the vCard version it writes at, and
-//! the file it writes to.
+//! The source a verb reads its card from, the vCard version it writes at, the
+//! editor it opens and the reader it hands the library.
 
 use alloc::{
     format,
@@ -11,8 +11,8 @@ use alloc::{
 
 use std::{
     fs,
-    io::{Read, Write, stdin, stdout},
-    path::{Path, PathBuf},
+    io::{Read, stdin},
+    path::PathBuf,
 };
 
 use anyhow::{Context, Result, bail};
@@ -125,25 +125,6 @@ impl From<CardVersion> for VcardVersion {
             CardVersion::V2_1 => VcardVersion::V2_1,
             CardVersion::V3_0 => VcardVersion::V3_0,
             CardVersion::V4_0 => VcardVersion::V4_0,
-        }
-    }
-}
-
-/// Where a verb writes its result, stdout when it has no path.
-pub struct Output<'a>(pub Option<&'a Path>);
-
-impl Output<'_> {
-    /// Write the bytes out, creating or truncating a file target.
-    pub fn write(&self, bytes: &[u8]) -> Result<()> {
-        match self.0 {
-            Some(path) => {
-                info!("writing {} bytes to {path:?}", bytes.len());
-                fs::write(path, bytes).with_context(|| format!("Cannot write to {path:?}"))
-            }
-            None => {
-                info!("writing {} bytes to stdout", bytes.len());
-                stdout().write_all(bytes).context("Cannot write to stdout")
-            }
         }
     }
 }

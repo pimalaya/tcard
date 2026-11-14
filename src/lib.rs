@@ -135,8 +135,11 @@
 //! carries no key at all.
 //!
 //! The `cli` feature adds the cli module, one module per verb over the shared
-//! arguments and the editor round trip. The binary above it is wiring only,
-//! and says so in its own header.
+//! arguments and the editor round trip. What a verb prints is data under the
+//! Pimalaya output contract: a document, or the receipt of the file it went
+//! to, and a failure coded from the [`error::TcardError`] it carries, both
+//! described by the schemas `json-schema` writes. The binary above it is
+//! wiring only, and says so in its own header.
 //!
 //! ## The golden fixture database
 //!
@@ -161,10 +164,10 @@
 //! record. Structured components are joined with their trailing empties
 //! dropped, so `N:Doe;John;;;` is re-emitted `N:Doe;John`.
 //!
-//! A line the document moved goes back out unfolded. vcard-rs records where a
-//! line was folded as offsets into that line's own bytes, so an edit changing
-//! its length invalidates them and the layout is dropped rather than applied
-//! in the wrong places. A line the document left alone keeps its folds, its
+//! A line the document moved is refolded by vcard-rs at 75 octets, keeping
+//! the folds before the first byte the edit changed, so its later folds can
+//! land elsewhere than the card had them; a 2.1 or quoted-printable line goes
+//! back out unfolded. A line the document left alone keeps its folds, its
 //! blank lines and its quoted-printable soft breaks.
 //!
 //! A birthday or anniversary is read as the card wrote it and written back in
