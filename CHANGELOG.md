@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+tCard takes the output and error contract the Pimalaya CLIs share. MIGRATION.md lists what to act on when upgrading from 0.2.
+
 ### Added
 
 - Added `apply <TEMPLATE> [SOURCE]`, which folds an edited TOML document back onto the card it was projected from, with no editor in the middle.
