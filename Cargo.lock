@@ -579,7 +579,7 @@ dependencies = [
 [[package]]
 name = "pimalaya-cli"
 version = "0.4.0"
-source = "git+https://github.com/pimalaya/cli?rev=3bada992cde034a6aa9474c169b6e2f892776db1#3bada992cde034a6aa9474c169b6e2f892776db1"
+source = "git+https://github.com/pimalaya/cli?rev=8190dc544e277aeeba6acc43817100179f19643b#8190dc544e277aeeba6acc43817100179f19643b"
 dependencies = [
  "anyhow",
  "base64-codec",
