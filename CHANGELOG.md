@@ -17,7 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
   A vCard 2.1 or 3.0 `TYPE` is read as the media type it names (`WAVE` is `audio/wav`, `PGP` is `application/pgp-keys`), and a key written as text, an armoured PGP block among them, is shown as the digest of that text.
 
 - Added `json-schema`, which writes the JSON Schema of what each command prints, the failure object included.
-- Added a stable `code` to the failure object: `card-unreadable`, `template-unreadable`, `collision-undecided`, `embedded-unknown`, `file-unreadable`, `editor-missing`, `editor-failed`, and `usage-invalid` for a command line the parser refuses.
+- Added a stable `code` to the failure object: `card-unreadable`, `template-unreadable`, `collision-undecided`, `embedded-unknown`, `file-unreadable`, and `usage-invalid` for a command line refused, by the parser or after it (`apply - -`, both inputs on stdin).
 
 ### Changed
 
@@ -26,7 +26,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
   In text, a document still prints as itself, and one written to a file prints nothing.
 
 - Changed a command line the parser refuses to print the failure object under `--json`, still exiting 2.
+- **BREAKING**: Changed `edit` and `merge` under `--json` to fail coded `usage-invalid` and exit 2 before opening an editor, which drew on the stdout a JSON caller reads. Edit the document yourself and fold it back with `apply`.
 - Changed an edited vCard 3.0 or 4.0 line longer than 75 octets to be folded, where it went out on one line (vcard-rs 0.6).
+- Changed an inline photo, logo, sound or key to decode when its last base64 group sets trailing bits (RFC 4648 section 3.5), where it was read as a reference; it keeps its digest, and what tCard writes is canonical (base64-codec).
 - Changed the help to print as written, no longer wrapped to the terminal width.
 - Changed the minimum supported Rust version to 1.89.
 - A photo is now one of `embedded`, `file` or `uri`, replacing `value` ([#1]).
@@ -35,7 +37,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
   A photo both sides of a merge changed is settled by the merge and noted in the header, since the merged card only holds one side's bytes.
 
-- `edit` and `merge` now offer to re-open the editor on any document that does not fold back, rather than on broken TOML and undecided collisions only.
+- `edit` and `merge` now offer to re-open the editor on any refusal of the edited document (TOML that does not parse, an undecided collision, an unknown embedded digest, an unreadable file it names), rather than on broken TOML and undecided collisions only, and on nothing else.
 - Changed piped `--json` output to print one value per line.
 
 ## [0.2.0] - 2026-09-01

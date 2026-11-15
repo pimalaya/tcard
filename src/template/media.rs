@@ -389,6 +389,18 @@ mod tests {
         }
     }
 
+    /// A card written by someone else may set the trailing bits of its last
+    /// base64 group, which RFC 4648 section 3.5 lets a decoder ignore: the
+    /// bytes still read, so the photo keeps its digest. What tCard writes
+    /// back is canonical.
+    #[test]
+    fn non_canonical_trailing_bits_decode_and_are_written_canonical() {
+        assert_eq!(super::decode("/9j/4B==").as_deref(), Some(JPEG));
+
+        let line = inlined("PHOTO", None, JPEG, VcardVersion::V4_0, &IMAGE);
+        assert!(line.ends_with("base64,/9j/4A=="), "{line}");
+    }
+
     #[test]
     fn every_version_inlines_the_same_bytes() {
         let digest = sha256(JPEG);

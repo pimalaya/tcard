@@ -12,11 +12,7 @@
 //! buffer, so an edit is never lost, whether it is broken TOML or a collision
 //! still to decide.
 
-use alloc::{
-    format,
-    string::{String, ToString},
-    vec::Vec,
-};
+use alloc::{format, string::String, vec::Vec};
 
 use std::{
     env::{self, temp_dir},
@@ -25,15 +21,13 @@ use std::{
     process::{Command, ExitStatus, Stdio},
 };
 
-use anyhow::{Context, Error, Result, bail};
+use anyhow::{Context, Error, Result, anyhow, bail};
+use clap::error::ErrorKind;
 use log::{debug, info};
-use pimalaya_cli::{error::CodedError, printer::Printer, prompt};
+use pimalaya_cli::{error::usage_error, printer::Printer, prompt};
 use uuid::Uuid;
 
-use crate::{
-    cli::error::ErrorCode,
-    error::{TcardError, TcardResult},
-};
+use crate::error::{TcardError, TcardResult};
 
 /// The editor round trip over one TOML document.
 pub struct Editor<'a> {
@@ -46,9 +40,10 @@ pub struct Editor<'a> {
 impl Editor<'_> {
     /// Edit the document, then fold it back with `apply`.
     ///
-    /// A failed fold offers to re-open the editor on the buffer that failed,
-    /// looping until it applies or the reader declines. JSON output is
-    /// non-interactive and propagates the error instead.
+    /// A refusal of the edited document offers to re-open the editor on the
+    /// buffer that failed, looping until it applies or the reader declines.
+    /// JSON output refuses to start: the editor would draw on the stdout a
+    /// JSON caller reads.
     ///
     /// The temporary file goes when the fold succeeds, and stays, named in the
     /// error, when it does not: what someone typed outlives the run.
@@ -57,6 +52,13 @@ impl Editor<'_> {
         printer: &mut impl Printer,
         apply: impl Fn(&str) -> TcardResult<String>,
     ) -> Result<String> {
+        if printer.is_json() {
+            let message = "An editor cannot run under --json, which owns stdout: drop --json, \
+                           or fold an edited document back with `tcard apply`";
+            let err = clap::Error::raw(ErrorKind::ArgumentConflict, message);
+            return Err(usage_error(&err));
+        }
+
         let command = self.command()?;
         let path = temp_dir().join(format!("tcard-{}.toml", Uuid::new_v4()));
 
@@ -78,11 +80,8 @@ impl Editor<'_> {
             };
 
             if !status.success() {
-                let err = CodedError::new(
-                    ErrorCode::EditorFailed,
-                    format!("Editor exited with {status}"),
-                );
-                return Err(keep(&path, err.into()));
+                let err = anyhow!("Editor exited with {status}");
+                return Err(keep(&path, err));
             }
 
             let edited =
@@ -96,12 +95,7 @@ impl Editor<'_> {
                 Err(err) => err,
             };
 
-            // NOTE: every refusal is about the document, which the reader can
-            // fix, but the card it came from, which they cannot from here.
-            let recoverable =
-                !matches!(err, TcardError::ParseVcard(_) | TcardError::ReadCard { .. });
-
-            if !recoverable || printer.is_json() || !prompt::bool(reprompt(&err), true)? {
+            if !err.is_document_refusal() || !prompt::bool(reprompt(&err), true)? {
                 return Err(keep(&path, err.into()));
             }
         }
@@ -125,8 +119,7 @@ impl Editor<'_> {
             }
         }
 
-        let message = "No editor found; set $VISUAL or $EDITOR, or pass --editor <COMMAND>";
-        Err(CodedError::new(ErrorCode::EditorMissing, message).into())
+        bail!("No editor found; set $VISUAL or $EDITOR, or pass --editor <COMMAND>")
     }
 }
 
@@ -154,7 +147,6 @@ fn spawn(command: &str, path: &PathBuf) -> Result<ExitStatus> {
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
         .status()
-        .map_err(|err| Error::new(CodedError::new(ErrorCode::EditorFailed, err.to_string())))
         .with_context(|| format!("Cannot spawn editor {program}"))
 }
 

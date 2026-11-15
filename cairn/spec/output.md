@@ -35,9 +35,7 @@ A failure SHALL print the pimalaya-cli failure object, whose `code` is one of tC
 - `template-unreadable`: the TOML document does not parse;
 - `collision-undecided`: the document still holds a merge collision;
 - `embedded-unknown`: the document names an embedded digest the card does not hold;
-- `file-unreadable`: a file the document names cannot be read;
-- `editor-missing`: neither `--editor`, `$VISUAL` nor `$EDITOR` names an editor;
-- `editor-failed`: the editor could not be spawned or exited with a failure.
+- `file-unreadable`: a file the document names cannot be read.
 
 The library stays free of pimalaya-cli: it fails with `TcardError`, and the CLI gives the chain the code of the variant it carries, every message kept.
 
@@ -47,7 +45,7 @@ The library stays free of pimalaya-cli: it fails with `TcardError`, and the CLI 
 - THEN stdout holds the failure object coded `template-unreadable`, and the exit code is 1
 
 ### Requirement: A refused command line exits 2
-The binary SHALL parse its arguments through pimalaya-cli's `clap::parse`, so a command line the grammar refuses exits 2, printing the failure object coded `usage-invalid` under `--json`. `apply` given `-` for both its document and its source SHALL fail coded `usage-invalid`, since one stdin cannot carry both.
+The binary SHALL parse its arguments through pimalaya-cli's `clap::parse`, so a command line the grammar refuses exits 2, printing the failure object coded `usage-invalid` under `--json`. `apply` given `-` for both its document and its source, since one stdin cannot carry both, and `edit` or `merge` under `--json` SHALL fail coded `usage-invalid` and exit 2 the same way.
 
 #### Scenario: A mistyped flag under JSON
 - GIVEN no command

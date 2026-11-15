@@ -63,4 +63,4 @@ uuid = { version = "1", default-features = false, features = ["std", "v4"], opti
 vcard-rs = { version = "0.6", default-features = false, features = ["parser"] }
 
 [patch.crates-io]
-pimalaya-cli = { git = "https://github.com/pimalaya/cli", rev = "9952b7f1c6a2cb9890e06c32ea73ed873b00995f" }
+pimalaya-cli = { git = "https://github.com/pimalaya/cli", rev = "3bada992cde034a6aa9474c169b6e2f892776db1" }

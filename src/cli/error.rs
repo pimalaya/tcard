@@ -10,7 +10,8 @@
 //!
 //! The library is free of pimalaya-cli, so it fails with a [`TcardError`],
 //! and [`coded`] gives the chain the matching code. The editor round trip
-//! raises its own codes where it fails.
+//! carries none: it never runs under `--json`, the only output that prints
+//! a code.
 
 use alloc::{
     string::{String, ToString},
@@ -38,10 +39,6 @@ pub enum ErrorCode {
     EmbeddedUnknown,
     /// A file the document names cannot be read.
     FileUnreadable,
-    /// Neither `--editor`, `$VISUAL` nor `$EDITOR` names an editor.
-    EditorMissing,
-    /// The editor could not be spawned or exited with a failure.
-    EditorFailed,
 }
 
 impl From<&TcardError> for ErrorCode {

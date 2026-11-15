@@ -104,24 +104,50 @@ fn an_unreadable_card_is_coded_card_unreadable() {
     assert_eq!(value["code"], "card-unreadable");
 }
 
+/// The editor would draw on the stdout a JSON caller reads, so neither verb
+/// running one starts, whatever editor is named.
 #[test]
-fn an_edit_with_no_editor_is_coded_editor_missing() {
-    let (value, code) = json(&["--json", "edit"]);
+fn an_editor_under_json_is_a_refused_command_line() {
+    for args in [
+        &["--json", "edit", "--editor", "true"][..],
+        &[
+            "--json",
+            "merge",
+            CLEAN,
+            CLEAN,
+            CLEAN,
+            "-o",
+            "/dev/null",
+            "--editor",
+            "true",
+        ],
+    ] {
+        let (value, code) = json(args);
 
-    assert_eq!(code, 1);
-    assert_eq!(value["code"], "editor-missing");
+        assert_eq!(code, 2, "{args:?}");
+        assert_eq!(value["code"], "usage-invalid", "{args:?}");
+    }
 }
 
 #[test]
-fn an_editor_exiting_with_a_failure_is_coded_editor_failed() {
-    let (value, code) = json(&["--json", "edit", "--editor", "false"]);
+fn an_edit_with_no_editor_fails() {
+    let output = run(&["edit"], "");
+    let stdout = String::from_utf8(output.stdout).unwrap();
 
-    assert_eq!(code, 1);
-    assert_eq!(value["code"], "editor-failed");
+    assert_eq!(output.status.code(), Some(1));
+    assert!(stdout.contains("No editor found"), "{stdout}");
+}
+
+#[test]
+fn an_editor_exiting_with_a_failure_keeps_the_buffer() {
+    let output = run(&["edit", "--editor", "false"], "");
+    let stdout = String::from_utf8(output.stdout).unwrap();
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(stdout.contains("Editor exited"), "{stdout}");
 
     // NOTE: the error names the buffer it kept, which is the recovery.
-    let kept = value["error"].as_str().unwrap();
-    let path = kept.split('"').nth(1).expect("kept path");
+    let path = stdout.split('"').nth(1).expect("kept path");
     fs::remove_file(Path::new(path)).unwrap();
 }
 
@@ -137,6 +163,6 @@ fn a_refused_command_line_exits_2_coded_usage_invalid() {
 fn two_stdin_inputs_are_coded_usage_invalid() {
     let (value, code) = json(&["--json", "apply", "-", "-"]);
 
-    assert_eq!(code, 1);
+    assert_eq!(code, 2);
     assert_eq!(value["code"], "usage-invalid");
 }
