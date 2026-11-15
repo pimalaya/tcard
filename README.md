@@ -60,7 +60,7 @@ This repository ships two interfaces: a Rust library projecting a card to TOML a
 - **Verbatim passthrough**: a property tCard does not list, a parameter the form hides and a group prefix all survive an edit untouched.
 - **Media as digests**: an inline photo, logo, sound or key shows as its media type and SHA-256, never as base64, and `file = "~/me.jpg"` inlines a new one.
 - **Three-way merge**: `merge` reconciles two divergent cards against their base, writing what it cannot decide as duplicate TOML keys.
-- **Interactive editing** in `$EDITOR`, or in the command `--editor` names, behind the opt-in `cli` cargo feature.
+- **Interactive editing** in `$EDITOR`, or in the command `--editor` names, behind the `cli` cargo feature, on by default.
 
 ## Installation
 
@@ -84,10 +84,10 @@ For a more up-to-date version, check the [releases](https://github.com/pimalaya/
 
 ### Cargo
 
-The binary lives behind the `cli` feature, which is off by default so that a library consumer pays for none of it:
+The binary lives behind the `cli` feature, on by default; a library consumer turns it off with `default-features = false` and pays for none of it:
 
 ```sh
-cargo install --locked --features cli tcard
+cargo install --locked tcard
 ```
 
 The library alone is a `tcard` dependency, which pulls in none of that:

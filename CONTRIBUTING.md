@@ -13,13 +13,13 @@ Everything below documents only what differs from the Pimalaya standards.
 
 ## Feature matrix
 
-tCard is a library first, so it ships no default features: the projection and the merge are a `no_std` core over `alloc`, and everything the CLI needs (clap, the editor, the filesystem, `std` itself) sits behind the opt-in `cli` feature.
+tCard is a library first: the projection and the merge are a `no_std` core over `alloc`, and everything the CLI needs (clap, the editor, the filesystem, `std` itself) sits behind the `cli` feature. `cli` is the one default feature, so `cargo install tcard` builds the binary; a library consumer turns it off with `default-features = false`.
 
-The default build is therefore the narrow one, the opposite of the io- libraries, so a change touching a feature gate or an import is built both ways before it lands:
+A change touching a feature gate or an import is built both ways before it lands:
 
 ```sh
-cargo build                   # the no_std core alone, no std leak
-cargo build --features cli    # the library plus the binary above it
+cargo build --no-default-features    # the no_std core alone, no std leak
+cargo build                          # the library plus the binary above it
 ```
 
 tCard depends on the released vcard-rs. To build against a local checkout, pass it on the command line rather than editing Cargo.toml:
@@ -33,7 +33,7 @@ cargo test --all-features --config 'patch.crates-io.vcard-rs.path="../vcard"'
 tests/data is a golden database of vCards, described in the src/lib.rs header. Adding a real-world export is the fastest way to turn a bug report into a regression test:
 
 1. drop the card in as tests/data/NAME.vcf;
-2. generate the expectation with `cargo run --features cli -- template tests/data/NAME.vcf -o tests/data/NAME.all.toml`;
+2. generate the expectation with `cargo run -- template tests/data/NAME.vcf -o tests/data/NAME.all.toml`;
 3. read what came out: if anything looks wrong you have found a bug, so fix the code rather than the fixture;
 4. add an empty tests/data/NAME.lossy marker when the source will not round-trip byte-for-byte, the known limitations in the src/lib.rs header saying when;
 5. run `cargo test`.
