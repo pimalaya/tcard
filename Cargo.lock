@@ -578,8 +578,9 @@ dependencies = [
 
 [[package]]
 name = "pimalaya-cli"
-version = "0.4.0"
-source = "git+https://github.com/pimalaya/cli?rev=8190dc544e277aeeba6acc43817100179f19643b#8190dc544e277aeeba6acc43817100179f19643b"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bc9fe296711004ff85b90ff0e96bb758ba649f28c8036400e75eddf230ceff86"
 dependencies = [
  "anyhow",
  "base64-codec",
