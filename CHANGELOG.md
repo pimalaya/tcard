@@ -33,7 +33,7 @@ tCard takes the output and error contract the Pimalaya CLIs share. MIGRATION.md 
 - Changed an inline photo, logo, sound or key to decode when its last base64 group sets trailing bits (RFC 4648 section 3.5), where it was read as a reference; it keeps its digest, and what tCard writes is canonical (base64-codec).
 - Changed the help to print as written, no longer wrapped to the terminal width.
 - Changed the minimum supported Rust version to 1.89.
-- Moved to pimalaya-cli 0.5.
+- Moved to pimalaya-cli 0.6.
 - A photo is now one of `embedded`, `file` or `uri`, replacing `value` ([#1]).
 
   An inline photo shows as `embedded.type` and `embedded.sha256`, the digest `sha256sum` prints, instead of its base64, and comes back byte for byte when left alone. `file = "~/me.jpg"` inlines a local image at the card's version, as a `data:` URI in 4.0 or base64 in 3.0 and 2.1, so replacing a photo is swapping its `embedded` for a `file`. A reference is `uri`, kept as written. An unknown digest and an unreadable file are refused.
