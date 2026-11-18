@@ -45,6 +45,7 @@ tCard takes the output and error contract the Pimalaya CLIs share. MIGRATION.md 
 
 ### Fixed
 
+- Fixed the file the editor opens on being readable by other users under a permissive umask: it is created 0600 on Unix through pimalaya-cli 0.6.1, and a file or a symbolic link planted at its path is refused rather than written through.
 - Fixed install.sh saving an HTTP error page as the archive and letting `tar` fail on it: it downloads with `curl -fsSLo` and stops on the error.
 
 ## [0.2.0] - 2026-09-01

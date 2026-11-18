@@ -17,14 +17,15 @@ use alloc::{format, string::String, vec::Vec};
 use std::{
     env::{self, temp_dir},
     fs,
-    path::PathBuf,
+    io::Write,
+    path::{Path, PathBuf},
     process::{Command, ExitStatus, Stdio},
 };
 
 use anyhow::{Context, Error, Result, anyhow, bail};
 use clap::error::ErrorKind;
 use log::{debug, info};
-use pimalaya_cli::{error::usage_error, printer::Printer, prompt};
+use pimalaya_cli::{error::usage_error, file::private_options, printer::Printer, prompt};
 use uuid::Uuid;
 
 use crate::error::{TcardError, TcardResult};
@@ -66,7 +67,7 @@ impl Editor<'_> {
             "seeding the editor with {} bytes in {path:?}",
             self.document.len()
         );
-        fs::write(&path, self.document).with_context(|| format!("Cannot write {path:?}"))?;
+        seed(&path, self.document)?;
 
         loop {
             let status = match spawn(&command, &path) {
@@ -150,6 +151,20 @@ fn spawn(command: &str, path: &PathBuf) -> Result<ExitStatus> {
         .with_context(|| format!("Cannot spawn editor {program}"))
 }
 
+/// Writes `document` to a new file at `path`, readable by its owner alone on
+/// Unix whatever the umask: a card is personal data, and the temporary
+/// directory is shared. A file or a symbolic link already at `path` is
+/// refused rather than written through.
+fn seed(path: &Path, document: &str) -> Result<()> {
+    let context = || format!("Cannot write {path:?}");
+    let mut file = private_options()
+        .write(true)
+        .create_new(true)
+        .open(path)
+        .with_context(context)?;
+    file.write_all(document.as_bytes()).with_context(context)
+}
+
 /// Keeps the buffer and names it in the error, the path being the recovery.
 fn keep(path: &PathBuf, err: Error) -> Error {
     err.context(format!("Cannot fold back {path:?}"))
@@ -171,5 +186,32 @@ fn reprompt(err: &TcardError) -> String {
             format!("Cannot parse TOML buffer:\n\n{err}\nRe-edit to fix it?")
         }
         err => format!("{err}\n\nRe-edit to fix it?"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::seed;
+
+    /// The file an editor is handed is its owner's alone, and one planted at
+    /// its path, a symbolic link included, is not written through.
+    #[cfg(unix)]
+    #[test]
+    fn the_seed_file_is_private_and_new() {
+        use std::os::unix::fs::{PermissionsExt, symlink};
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("card.toml");
+        seed(&path, "[name]\n").unwrap();
+        let mode = std::fs::metadata(&path).unwrap().permissions().mode();
+        assert_eq!(mode & 0o777, 0o600);
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "[name]\n");
+
+        let target = dir.path().join("target");
+        std::fs::write(&target, "kept").unwrap();
+        let link = dir.path().join("link.toml");
+        symlink(&target, &link).unwrap();
+        assert!(seed(&link, "seed").is_err());
+        assert_eq!(std::fs::read_to_string(&target).unwrap(), "kept");
     }
 }
