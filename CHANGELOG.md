@@ -43,6 +43,10 @@ tCard takes the output and error contract the Pimalaya CLIs share. MIGRATION.md 
 - `edit` and `merge` now offer to re-open the editor on any refusal of the edited document (TOML that does not parse, an undecided collision, an unknown embedded digest, an unreadable file it names), rather than on broken TOML and undecided collisions only, and on nothing else.
 - Changed piped `--json` output to print one value per line.
 
+### Fixed
+
+- Fixed install.sh saving an HTTP error page as the archive and letting `tar` fail on it: it downloads with `curl -fsSLo` and stops on the error.
+
 ## [0.2.0] - 2026-09-01
 
 ### Added
