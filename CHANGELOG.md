@@ -23,6 +23,7 @@ tCard takes the output and error contract the Pimalaya CLIs share. MIGRATION.md 
 
 ### Changed
 
+- Changed the pimalaya-cli dependency to 0.7.0.
 - **BREAKING**: Changed `--json` output to print the document as `{"contents": ...}`, or as the receipt `{"path": ..., "size": ...}` when it was written to a file, rather than the raw TOML or vCard.
 
   In text, a document still prints as itself, and one written to a file prints nothing.
