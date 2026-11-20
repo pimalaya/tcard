@@ -60,4 +60,4 @@ sha2 = { version = "0.11", default-features = false }
 simd-cpu = { version = "0.1", default-features = false, features = ["std"], optional = true }
 toml_edit = { version = "0.25", default-features = false, features = ["parse", "display"] }
 uuid = { version = "1", default-features = false, features = ["std", "v4"], optional = true }
-vcard-rs = { version = "0.6", default-features = false, features = ["parser"] }
+vcard-rs = { version = "0.6.1", default-features = false, features = ["parser"] }

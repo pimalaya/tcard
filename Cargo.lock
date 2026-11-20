@@ -1155,9 +1155,9 @@ dependencies = [
 
 [[package]]
 name = "vcard-rs"
-version = "0.6.0"
+version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e4e9d3a6221632badbdc1b7fa9bb8518386ff0b5dfd12eacfcbcec88db38884d"
+checksum = "7e0bf98fed3a46522c7893facb4f2b133945e829f4965a2afecb0207b255eaee"
 dependencies = [
  "memchr",
 ]
